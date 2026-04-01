@@ -29,11 +29,26 @@ export function renderSelectedSummary() {
         <button class="summary-clear-btn" id="btn-summary-clear">Limpiar</button>
       </div>
       <div class="summary-chips">
-        ${selected.map(({ sec, item }) => `<span class="summary-chip">${sec.icon} ${item}</span>`).join('')}
+        ${selected.map(({ sec, item }) => `
+          <span class="summary-chip">
+            ${sec.icon} ${item}
+            <button class="summary-chip-remove" data-sec="${sec.id}" data-item="${encodeURIComponent(item)}" title="Quitar">×</button>
+          </span>
+        `).join('')}
       </div>
     </div>
   `;
   document.getElementById('btn-summary-clear').addEventListener('click', clearAll);
+
+  // Quitar un item individual desde el resumen sin limpiar toda la lista
+  wrapper.querySelectorAll('.summary-chip-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.sec + '|' + decodeURIComponent(btn.dataset.item);
+      state.mainState[key] = false;
+      saveMain();
+      renderMain();
+    });
+  });
 }
 
 // ── Estadísticas del header ───────────────────────────────────────────────────
