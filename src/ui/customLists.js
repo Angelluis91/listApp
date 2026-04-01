@@ -1,10 +1,10 @@
-// Renderiza la pantalla "Mis Listas": tarjetas de listas personalizadas con progreso y opción de eliminar
-import { state }           from '../state/appState.js';
-import { detailStats }     from '../utils/statsUtils.js';
+// Renderiza la pantalla "Mis Listas": tarjetas de listas personalizadas con progreso, edición y eliminación
+import { state }            from '../state/appState.js';
+import { detailStats }      from '../utils/statsUtils.js';
 import { deleteListFromDB } from '../services/listsService.js';
-import { openList }        from './detail.js';
+import { openList }         from './detail.js';
 
-// Renderiza las tarjetas de todas las listas personalizadas con su progreso
+// Renderiza las tarjetas de todas las listas personalizadas con su progreso y acciones
 export function renderLists() {
   const container = document.getElementById('lists-container');
   container.innerHTML = '';
@@ -30,14 +30,17 @@ export function renderLists() {
         </div>
       </div>
       <span class="list-card-arrow">›</span>
-      <button class="list-card-delete" title="Eliminar">🗑</button>
+      <button class="icon-btn sm list-card-edit" data-action="edit-list" data-id="${list.id}" title="Editar lista">✏️</button>
+      <button class="icon-btn sm danger list-card-delete" title="Eliminar">🗑</button>
     `;
+
     card.querySelector('.list-card-info').addEventListener('click', () => openList(list.id));
     card.querySelector('.list-card-arrow').addEventListener('click', () => openList(list.id));
     card.querySelector('.list-card-delete').addEventListener('click', e => {
       e.stopPropagation();
       deleteList(list.id);
     });
+
     container.appendChild(card);
   });
 }

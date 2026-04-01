@@ -45,8 +45,8 @@
         <div class="global-progress-fill" id="g-prog" style="width:0%"></div>
       </div>
     </div>
-    <div class="filter-bar" id="main-filters"></div>
     <div class="content">
+      <div id="selected-summary"></div>
       <div class="search-wrap">
         <span class="search-icon">🔍</span>
         <input type="text" id="main-search" placeholder="Buscar producto...">
@@ -99,10 +99,10 @@
     </div>
   </div>
 
-  <!-- MODAL NUEVA LISTA -->
+  <!-- MODAL NUEVA / EDITAR LISTA -->
   <div class="modal-overlay" id="modal">
     <div class="modal">
-      <h3>Nueva lista</h3>
+      <h3 id="modal-title">Nueva lista</h3>
       <div class="modal-field">
         <label>Nombre</label>
         <input type="text" id="modal-name" placeholder="ej: Farmacia, Viaje...">

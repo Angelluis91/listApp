@@ -1,4 +1,4 @@
-// Operaciones de Firestore para las listas personalizadas: suscripción en tiempo real, guardado y eliminación
+// Operaciones de Firestore para las listas personalizadas: suscripción, guardado, eliminación y renombrado
 import { collection, doc, onSnapshot, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db }    from '../config/firebase.js';
 import { state } from '../state/appState.js';
@@ -6,11 +6,7 @@ import { setSyncing, setOk, setError } from '../ui/syncIndicator.js';
 
 const COL_LISTS = 'compra_lists';
 
-/**
- * Suscribe a la colección de listas personalizadas en Firestore.
- * Llama a onUpdate() cada vez que haya cambios.
- * @param {Function} onUpdate - Callback que se ejecuta tras actualizar el estado
- */
+// Suscribe a la colección de listas personalizadas ordenadas por fecha de creación
 export function subscribeLists(onUpdate) {
   if (state.listsListener) state.listsListener();
 
@@ -23,17 +19,11 @@ export function subscribeLists(onUpdate) {
       setOk();
       if (onUpdate) onUpdate();
     },
-    (err) => {
-      console.error('[listsService] Error en suscripción:', err);
-      setError();
-    }
+    (err) => { console.error('[listsService] Error en suscripción:', err); setError(); }
   );
 }
 
-/**
- * Guarda o actualiza una lista personalizada en Firestore.
- * @param {Object} list - Lista con { id, name, emoji, items, createdAt }
- */
+// Guarda o actualiza una lista personalizada completa en Firestore
 export async function saveList(list) {
   setSyncing();
   try {
@@ -46,10 +36,16 @@ export async function saveList(list) {
   }
 }
 
-/**
- * Elimina una lista personalizada de Firestore.
- * @param {string} id - ID del documento a eliminar
- */
+// Actualiza solo el nombre y/o emoji de una lista sin tocar sus items
+export async function updateListMeta(listId, { name, emoji }) {
+  const list = state.customLists.find(l => l.id === listId);
+  if (!list) return;
+  if (name  !== undefined) list.name  = name;
+  if (emoji !== undefined) list.emoji = emoji;
+  await saveList(list);
+}
+
+// Elimina una lista personalizada de Firestore por su ID
 export async function deleteListFromDB(id) {
   setSyncing();
   try {
