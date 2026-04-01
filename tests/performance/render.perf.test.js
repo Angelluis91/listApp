@@ -55,13 +55,11 @@ function setupDetailDOM() {
   `;
 }
 
-// Genera una estructura de secciones con N items por sección
-function makeStructure(sections, itemsPerSection) {
-  return Array.from({ length: sections }, (_, s) => ({
-    id:    `sec_${s}`,
-    icon:  '📦',
-    name:  `Sección ${s}`,
-    items: Array.from({ length: itemsPerSection }, (_, i) => `Item ${s}_${i}`),
+// Genera N items planos para la lista principal
+function makeStructure(count) {
+  return Array.from({ length: count }, (_, i) => ({
+    id:    `item_${i}`,
+    label: `Producto ${i}`,
   }));
 }
 
@@ -87,40 +85,37 @@ describe('Render — rendimiento de pintado DOM', () => {
 
   // ── renderMain ─────────────────────────────────────────────────────────────
   describe('renderMain', () => {
-    it(`pinta 5 secciones × 10 items (caso real) en menos de ${RENDER_THRESHOLD_MS}ms`, () => {
+    it(`pinta 50 items (caso real) en menos de ${RENDER_THRESHOLD_MS}ms`, () => {
       setupMainDOM();
-      state.mainStructure = makeStructure(5, 10);
+      state.mainStructure = makeStructure(50);
 
       const t0 = performance.now();
       renderMain();
       const elapsed = performance.now() - t0;
 
-      const cards = document.querySelectorAll('.section-card');
-      expect(cards).toHaveLength(5);
+      expect(document.querySelectorAll('.item-row')).toHaveLength(50);
       expect(elapsed).toBeLessThan(RENDER_THRESHOLD_MS);
     });
 
-    it(`pinta 17 secciones × 20 items (caso extremo) en menos de ${RENDER_THRESHOLD_EXTREME}ms`, () => {
+    it(`pinta 300 items (caso extremo) en menos de ${RENDER_THRESHOLD_EXTREME}ms`, () => {
       setupMainDOM();
-      state.mainStructure = makeStructure(17, 20);
+      state.mainStructure = makeStructure(300);
 
       const t0 = performance.now();
       renderMain();
       const elapsed = performance.now() - t0;
 
-      expect(document.querySelectorAll('.section-card')).toHaveLength(17);
+      expect(document.querySelectorAll('.item-row')).toHaveLength(300);
       expect(elapsed).toBeLessThan(RENDER_THRESHOLD_EXTREME);
     });
 
     it(`pinta correctamente items marcados (checked) sin penalizar el tiempo`, () => {
       setupMainDOM();
-      state.mainStructure = makeStructure(5, 10);
+      state.mainStructure = makeStructure(50);
       // Marcar la mitad de los items
-      state.mainStructure.forEach(sec =>
-        sec.items.forEach((item, i) => {
-          if (i % 2 === 0) state.mainState[`${sec.id}|${item}`] = true;
-        })
-      );
+      state.mainStructure.forEach((item, i) => {
+        if (i % 2 === 0) state.mainState[item.id] = true;
+      });
 
       const t0 = performance.now();
       renderMain();

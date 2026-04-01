@@ -167,6 +167,15 @@ input  { font-family: inherit; }
 }
 .summary-chip-remove:hover { background: var(--primary); color: #fff; }
 
+/* ── Lista plana de items (pantalla principal simplificada) ────────────────── */
+.items-flat-list {
+  background: var(--surface); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm); border: 1px solid var(--border);
+  margin-bottom: 12px; overflow: hidden;
+}
+.items-flat-list .item-row { border-bottom: 1px solid var(--border); }
+.items-flat-list .item-row:last-child { border-bottom: none; }
+
 /* ── Section cards ─────────────────────────────────────────────────────────── */
 .section-card {
   background: var(--surface); border-radius: var(--r-lg);

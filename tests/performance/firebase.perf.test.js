@@ -34,8 +34,14 @@ function makeListDocs(n) {
   }));
 }
 
-// Genera secciones con M items cada una para simular la lista principal
-function makeStructureSnap(sections, itemsPerSection) {
+// Genera un snapshot con N items planos para simular la lista principal
+function makeStructureSnap(count) {
+  const items = Array.from({ length: count }, (_, i) => ({ id: `item_${i}`, label: `Producto ${i}` }));
+  return { exists: () => true, data: () => ({ items }) };
+}
+
+// Genera un snapshot con formato antiguo de secciones para probar la migración
+function makeLegacyStructureSnap(sections, itemsPerSection) {
   const data = Array.from({ length: sections }, (_, s) => ({
     id:    `sec_${s}`,
     icon:  '📦',
@@ -84,28 +90,31 @@ describe('Firebase — rendimiento de suscripciones', () => {
 
   // ── subscribeStructure ─────────────────────────────────────────────────────
   describe('subscribeStructure', () => {
-    it(`carga 10 secciones × 20 items en menos de ${SUBSCRIPTION_THRESHOLD_MS}ms`, () => {
-      const snap = makeStructureSnap(10, 20);
+    it(`carga 200 items planos en menos de ${SUBSCRIPTION_THRESHOLD_MS}ms`, () => {
+      const snap = makeStructureSnap(200);
       mockOnSnapshot.mockImplementation((ref, cb) => { cb(snap); return vi.fn(); });
 
       const t0 = performance.now();
       subscribeStructure(vi.fn());
       const elapsed = performance.now() - t0;
 
-      expect(state.mainStructure).toHaveLength(10);
-      expect(state.mainStructure[0].items).toHaveLength(20);
+      expect(state.mainStructure).toHaveLength(200);
+      expect(state.mainStructure[0]).toHaveProperty('id');
+      expect(state.mainStructure[0]).toHaveProperty('label');
       expect(elapsed).toBeLessThan(SUBSCRIPTION_THRESHOLD_MS);
     });
 
-    it(`carga 20 secciones × 50 items (caso extremo) en menos de ${SUBSCRIPTION_THRESHOLD_MS}ms`, () => {
-      const snap = makeStructureSnap(20, 50);
+    it(`migra formato antiguo de 10 secciones × 20 items en menos de ${SUBSCRIPTION_THRESHOLD_MS}ms`, () => {
+      const snap = makeLegacyStructureSnap(10, 20);
       mockOnSnapshot.mockImplementation((ref, cb) => { cb(snap); return vi.fn(); });
 
       const t0 = performance.now();
       subscribeStructure(vi.fn());
       const elapsed = performance.now() - t0;
 
-      expect(state.mainStructure).toHaveLength(20);
+      // 10 secciones × 20 items = 200 items planos
+      expect(state.mainStructure).toHaveLength(200);
+      expect(state.mainStructure[0]).toHaveProperty('label');
       expect(elapsed).toBeLessThan(SUBSCRIPTION_THRESHOLD_MS);
     });
   });

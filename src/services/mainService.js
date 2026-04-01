@@ -1,4 +1,4 @@
-// Operaciones de Firestore para la lista principal: estado de marcado y estructura editable de secciones
+// Operaciones de Firestore para la lista principal: estado de marcado y estructura plana de items
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db }          from '../config/firebase.js';
 import { state }       from '../state/appState.js';
@@ -16,13 +16,7 @@ export function subscribeMain(onUpdate) {
   state.mainListener = onSnapshot(
     doc(db, COL_MAIN, DOC_STATE),
     (snap) => {
-      if (snap.exists()) {
-        state.mainState = snap.data() || {};
-      } else {
-        MAIN_DATA.forEach(sec =>
-          sec.items.forEach(item => { state.mainState[sec.id + '|' + item] = false; })
-        );
-      }
+      state.mainState = snap.exists() ? (snap.data() || {}) : {};
       setOk();
       if (onUpdate) onUpdate();
     },
@@ -42,7 +36,7 @@ export async function saveMain() {
   }
 }
 
-// Suscribe a la estructura editable (secciones e items) e inicializa desde MAIN_DATA si no existe
+// Suscribe a la estructura de items; migra automáticamente el formato antiguo de secciones si es necesario
 export function subscribeStructure(onUpdate) {
   if (state.structureListener) state.structureListener();
 
@@ -50,10 +44,25 @@ export function subscribeStructure(onUpdate) {
     doc(db, COL_MAIN, DOC_STRUCTURE),
     (snap) => {
       if (snap.exists()) {
-        state.mainStructure = snap.data().sections || [];
+        const data = snap.data();
+        if (Array.isArray(data.sections)) {
+          // Migración: formato antiguo con secciones → aplanar a items planos
+          let idx = 0;
+          state.mainStructure = [];
+          data.sections.forEach(sec =>
+            sec.items.forEach(label => state.mainStructure.push({ id: 'item_' + idx++, label }))
+          );
+          saveStructure();
+        } else {
+          state.mainStructure = data.items || [];
+        }
       } else {
-        // Primera vez: copia profunda de MAIN_DATA para que sea mutable
-        state.mainStructure = MAIN_DATA.map(sec => ({ ...sec, items: [...sec.items] }));
+        // Primera vez: aplanar MAIN_DATA completo en una lista plana
+        let idx = 0;
+        state.mainStructure = [];
+        MAIN_DATA.forEach(sec =>
+          sec.items.forEach(label => state.mainStructure.push({ id: 'item_' + idx++, label }))
+        );
         saveStructure();
       }
       setOk();
@@ -63,11 +72,11 @@ export function subscribeStructure(onUpdate) {
   );
 }
 
-// Persiste la estructura de secciones e items en Firestore
+// Persiste la lista plana de items en Firestore
 export async function saveStructure() {
   setSyncing();
   try {
-    await setDoc(doc(db, COL_MAIN, DOC_STRUCTURE), { sections: state.mainStructure });
+    await setDoc(doc(db, COL_MAIN, DOC_STRUCTURE), { items: state.mainStructure });
     setOk();
   } catch (err) {
     console.error('[mainService] Error al guardar estructura:', err);

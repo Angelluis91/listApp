@@ -10,8 +10,8 @@ let editingListId = null;
 // Abre el modal en modo creación, resetea el formulario y pone el foco en el campo nombre
 export function openModal() {
   editingListId = null;
-  document.getElementById('modal-title').textContent    = 'Nueva lista';
-  document.getElementById('btn-modal-create').textContent = 'Crear';
+  document.getElementById('modal-title').textContent       = 'Nueva lista';
+  document.getElementById('btn-modal-create').textContent  = 'Crear';
   document.getElementById('modal-name').value = '';
   state.selectedEmoji = '📝';
   renderEmojiPicker();
@@ -25,8 +25,8 @@ export function openEditModal(listId) {
   if (!list) return;
 
   editingListId = listId;
-  document.getElementById('modal-title').textContent    = 'Editar lista';
-  document.getElementById('btn-modal-create').textContent = 'Guardar';
+  document.getElementById('modal-title').textContent       = 'Editar lista';
+  document.getElementById('btn-modal-create').textContent  = 'Guardar';
   document.getElementById('modal-name').value = list.name;
   state.selectedEmoji = list.emoji;
   renderEmojiPicker();
@@ -67,13 +67,11 @@ export async function createList() {
     return;
   }
 
-  // Modo creación: crear nueva lista y navegar a su detalle
+  // Modo creación: guardar en Firestore y abrir detalle
+  // persistentLocalCache dispara onSnapshot de forma inmediata tras el write,
+  // por lo que state.customLists ya estará actualizado cuando openList sea llamado
   const id   = Date.now().toString();
   const list = { id, name, emoji: state.selectedEmoji, items: [], createdAt: Date.now() };
-
   await saveList(list);
-
-  // El listener de Firestore añadirá la lista; abrimos el detalle inmediatamente
-  state.customLists.push(list);
-  setTimeout(() => openList(id), 200);
+  openList(id);
 }

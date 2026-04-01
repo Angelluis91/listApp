@@ -1,4 +1,4 @@
-// Tests unitarios para mainService: verifica la suscripción a Firestore y el guardado del estado principal y estructura
+// Tests unitarios para mainService: suscripción y guardado de estado principal y estructura plana de items
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // vi.hoisted permite definir variables que pueden usarse dentro de vi.mock factories
@@ -54,24 +54,22 @@ describe('mainService', () => {
 
     it('actualiza state.mainState con los datos del snapshot cuando existe', () => {
       const onUpdate = vi.fn();
-      const mockSnap = { exists: () => true, data: () => ({ 'frutas|Manzanas': true }) };
+      const mockSnap = { exists: () => true, data: () => ({ 'item_0': true }) };
       mockOnSnapshot.mockImplementation((ref, successCb) => { successCb(mockSnap); return vi.fn(); });
 
       subscribeMain(onUpdate);
 
-      expect(state.mainState['frutas|Manzanas']).toBe(true);
+      expect(state.mainState['item_0']).toBe(true);
       expect(onUpdate).toHaveBeenCalledTimes(1);
     });
 
-    it('inicializa todo a false cuando el snapshot no existe (primera vez)', () => {
+    it('inicializa state.mainState a {} cuando el snapshot no existe', () => {
       const mockSnap = { exists: () => false };
       mockOnSnapshot.mockImplementation((ref, successCb) => { successCb(mockSnap); return vi.fn(); });
 
       subscribeMain(vi.fn());
 
-      const keys = Object.keys(state.mainState);
-      expect(keys.length).toBeGreaterThan(0);
-      expect(Object.values(state.mainState).every(v => v === false)).toBe(true);
+      expect(state.mainState).toEqual({});
     });
 
     it('llama a setError y no a onUpdate cuando el snapshot falla', () => {
@@ -89,7 +87,7 @@ describe('mainService', () => {
   describe('saveMain', () => {
     it('llama a setSyncing, setDoc y setOk en caso exitoso', async () => {
       mockSetDoc.mockResolvedValue(undefined);
-      state.mainState = { 'frutas|Manzanas': true };
+      state.mainState = { item_0: true };
 
       await saveMain();
 
@@ -129,32 +127,52 @@ describe('mainService', () => {
       expect(cancel1).toHaveBeenCalledTimes(1);
     });
 
-    it('carga state.mainStructure desde el snapshot cuando existe', () => {
-      const sections = [{ id: 'sec_1', icon: '🥦', name: 'Verduras', items: ['Lechuga'] }];
-      const mockSnap = { exists: () => true, data: () => ({ sections }) };
-      mockOnSnapshot.mockImplementation((ref, successCb) => { successCb(mockSnap); return vi.fn(); });
+    it('carga state.mainStructure desde el formato nuevo { items: [...] }', () => {
+      mockSetDoc.mockResolvedValue(undefined);
+      const items = [{ id: 'item_0', label: 'Leche' }, { id: 'item_1', label: 'Pan' }];
+      const mockSnap = { exists: () => true, data: () => ({ items }) };
+      mockOnSnapshot.mockImplementation((ref, cb) => { cb(mockSnap); return vi.fn(); });
 
       subscribeStructure(vi.fn());
 
-      expect(state.mainStructure).toEqual(sections);
+      expect(state.mainStructure).toEqual(items);
     });
 
-    it('inicializa mainStructure desde MAIN_DATA cuando el snapshot no existe', () => {
+    it('migra el formato antiguo de secciones a items planos', () => {
+      mockSetDoc.mockResolvedValue(undefined);
+      const sections = [
+        { id: 'frutas',  icon: '🍎', name: 'Frutas',  items: ['Manzana', 'Pera'] },
+        { id: 'bebidas', icon: '🥛', name: 'Bebidas', items: ['Leche'] },
+      ];
+      const mockSnap = { exists: () => true, data: () => ({ sections }) };
+      mockOnSnapshot.mockImplementation((ref, cb) => { cb(mockSnap); return vi.fn(); });
+
+      subscribeStructure(vi.fn());
+
+      expect(state.mainStructure).toHaveLength(3);
+      expect(state.mainStructure[0]).toMatchObject({ label: 'Manzana' });
+      expect(state.mainStructure[1]).toMatchObject({ label: 'Pera' });
+      expect(state.mainStructure[2]).toMatchObject({ label: 'Leche' });
+      // Debe guardar el nuevo formato en Firestore
+      expect(mockSetDoc).toHaveBeenCalled();
+    });
+
+    it('inicializa desde MAIN_DATA cuando el snapshot no existe', () => {
       mockSetDoc.mockResolvedValue(undefined);
       const mockSnap = { exists: () => false };
-      mockOnSnapshot.mockImplementation((ref, successCb) => { successCb(mockSnap); return vi.fn(); });
+      mockOnSnapshot.mockImplementation((ref, cb) => { cb(mockSnap); return vi.fn(); });
 
       subscribeStructure(vi.fn());
 
       expect(state.mainStructure.length).toBeGreaterThan(0);
       expect(state.mainStructure[0]).toHaveProperty('id');
-      expect(state.mainStructure[0]).toHaveProperty('items');
+      expect(state.mainStructure[0]).toHaveProperty('label');
     });
 
     it('llama a onUpdate cuando el snapshot llega correctamente', () => {
       const onUpdate = vi.fn();
-      const mockSnap = { exists: () => true, data: () => ({ sections: [] }) };
-      mockOnSnapshot.mockImplementation((ref, successCb) => { successCb(mockSnap); return vi.fn(); });
+      const mockSnap = { exists: () => true, data: () => ({ items: [] }) };
+      mockOnSnapshot.mockImplementation((ref, cb) => { cb(mockSnap); return vi.fn(); });
 
       subscribeStructure(onUpdate);
 
@@ -174,7 +192,7 @@ describe('mainService', () => {
   describe('saveStructure', () => {
     it('llama a setSyncing, setDoc y setOk en caso exitoso', async () => {
       mockSetDoc.mockResolvedValue(undefined);
-      state.mainStructure = [{ id: 'sec_1', icon: '📦', name: 'General', items: [] }];
+      state.mainStructure = [{ id: 'item_0', label: 'Leche' }];
 
       await saveStructure();
 
@@ -183,14 +201,14 @@ describe('mainService', () => {
       expect(setOk).toHaveBeenCalledTimes(1);
     });
 
-    it('persiste las secciones envueltas en { sections: ... }', async () => {
+    it('persiste los items envueltos en { items: [...] }', async () => {
       mockSetDoc.mockResolvedValue(undefined);
-      const sections = [{ id: 'sec_1', icon: '📦', name: 'General', items: [] }];
-      state.mainStructure = sections;
+      const items = [{ id: 'item_0', label: 'Leche' }];
+      state.mainStructure = items;
 
       await saveStructure();
 
-      expect(mockSetDoc).toHaveBeenCalledWith(expect.anything(), { sections });
+      expect(mockSetDoc).toHaveBeenCalledWith(expect.anything(), { items });
     });
 
     it('llama a setError cuando setDoc lanza una excepción', async () => {
