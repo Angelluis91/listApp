@@ -1,6 +1,6 @@
-// Inicializa la app de Firebase y exporta la instancia de Firestore con caché local persistente
-import { initializeApp }                              from 'firebase/app';
-import { initializeFirestore, persistentLocalCache } from 'firebase/firestore';
+// Inicializa la app de Firebase y exporta la instancia de Firestore con caché persistente multi-pestaña
+import { initializeApp }                                                        from 'firebase/app';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -13,7 +13,9 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// persistentLocalCache activa IndexedDB como caché offline — carga instantánea en recargas
+// persistentLocalCache con persistentMultipleTabManager permite caché IndexedDB en múltiples pestañas
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache(),
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
 });
