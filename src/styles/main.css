@@ -54,6 +54,22 @@ input  { font-family: inherit; }
 #sync-dot.ok      { background: var(--success); }
 #sync-dot.error   { background: var(--danger); }
 
+/* ── Price indicator ───────────────────────────────────────────────────────── */
+.price-indicator {
+  position: fixed; bottom: 34px; left: 16px; z-index: 998;
+  display: flex; align-items: center; gap: 6px;
+  font-size: .72rem; font-weight: 500; color: var(--ink-2);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 5px 11px;
+  box-shadow: var(--shadow-sm);
+  opacity: 0; pointer-events: none;
+  transform: translateY(6px);
+  transition: opacity 300ms var(--ease), transform 300ms var(--ease);
+}
+.price-indicator.visible          { opacity: 1; pointer-events: auto; transform: none; }
+.price-indicator--ok              { border-color: var(--success-light); color: var(--success); }
+.price-indicator--error           { border-color: var(--danger-light);  color: var(--danger); }
+
 /* ── Tab bar ───────────────────────────────────────────────────────────────── */
 .tab-bar {
   position: fixed; top: 0; left: 0; right: 0;
@@ -186,11 +202,36 @@ input  { font-family: inherit; }
 .store-section-header {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 4px 6px;
+  cursor: pointer; user-select: none;
+  border-radius: var(--r-sm);
+  transition: background var(--dur);
 }
+.store-section-header:hover { background: rgba(0,0,0,.03); }
 .store-section-title {
   font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
   color: var(--store-color); border-left: 3px solid var(--store-color); padding-left: 8px;
+  flex: 1;
 }
+.store-section-count {
+  font-size: .72rem; font-weight: 600; color: var(--ink-4);
+  background: var(--bg); padding: 1px 7px; border-radius: 999px;
+  border: 1px solid var(--border);
+}
+.store-chevron {
+  width: 14px; height: 14px; color: var(--ink-4); flex-shrink: 0;
+  transition: transform var(--dur) var(--ease);
+}
+.store-section.collapsed .store-chevron { transform: rotate(-90deg); }
+
+/* Animación de colapso con grid-template-rows */
+.store-section-body {
+  display: grid; grid-template-rows: 1fr;
+  transition: grid-template-rows 220ms var(--ease);
+}
+.store-section.collapsed .store-section-body {
+  grid-template-rows: 0fr;
+}
+.store-section-body > div { overflow: hidden; }
 
 /* ── Lista plana de items ──────────────────────────────────────────────────── */
 .items-flat-list {

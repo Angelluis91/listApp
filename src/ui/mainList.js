@@ -4,7 +4,11 @@ import { state }                   from '../state/appState.js';
 import { mainStats }               from '../utils/statsUtils.js';
 import { saveMain, saveStructure } from '../services/mainService.js';
 
-const CHECK_SVG = `<svg viewBox="0 0 12 9" fill="none"><path d="M1 4.5L4.5 8L11 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const CHECK_SVG   = `<svg viewBox="0 0 12 9" fill="none"><path d="M1 4.5L4.5 8L11 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const CHEVRON_SVG = `<svg class="store-chevron" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+// Secciones actualmente contraídas (persiste en la sesión, no en Firestore)
+const collapsedStores = new Set();
 
 const STORE_CONFIG = {
   mercadona: { label: 'Mercadona', color: '#00875a', light: '#e6f4f0', border: '#b2dfdb' },
@@ -49,36 +53,59 @@ export function renderMain() {
   });
 }
 
-// Crea la tarjeta de una tienda con su lista de items y botón de añadir
+// Crea la tarjeta de una tienda con cabecera desplegable, lista de items y botón de añadir
 function renderStoreSection(store, items) {
-  const cfg = STORE_CONFIG[store];
+  const cfg       = STORE_CONFIG[store];
+  const collapsed = collapsedStores.has(store);
+
+  // Contar cuántos items están marcados para mostrar en el badge del header
+  const allItems = state.mainStructure.filter(i => i.store === store);
+  const doneCount = allItems.filter(i => state.mainState[i.id]).length;
+
   const section = document.createElement('div');
-  section.className = 'store-section';
+  section.className = 'store-section' + (collapsed ? ' collapsed' : '');
   section.style.setProperty('--store-color', cfg.color);
   section.style.setProperty('--store-light', cfg.light);
   section.style.setProperty('--store-border', cfg.border);
 
+  // Cabecera clicable que despliega/contrae la sección
   const header = document.createElement('div');
   header.className = 'store-section-header';
-  header.innerHTML = `<span class="store-section-title">${cfg.label}</span>`;
+  header.innerHTML = `
+    <span class="store-section-title">${cfg.label}</span>
+    <span class="store-section-count">${doneCount}/${allItems.length}</span>
+    ${CHEVRON_SVG}
+  `;
+  header.addEventListener('click', () => {
+    collapsedStores.has(store) ? collapsedStores.delete(store) : collapsedStores.add(store);
+    section.classList.toggle('collapsed');
+  });
   section.appendChild(header);
+
+  // Cuerpo de la sección — se colapsa con CSS grid animation
+  const body = document.createElement('div');
+  body.className = 'store-section-body';
+
+  const inner = document.createElement('div');
 
   const list = document.createElement('div');
   list.className = 'items-flat-list';
-
   if (items.length) {
     items.forEach(item => list.appendChild(createItemRow(item)));
   } else {
     list.innerHTML = `<div class="empty" style="padding:14px;font-size:.82rem">Sin elementos</div>`;
   }
-  section.appendChild(list);
+  inner.appendChild(list);
 
   // Botón para añadir un elemento a esta tienda
   const addBtn = document.createElement('button');
   addBtn.className = 'add-item-btn';
   addBtn.textContent = '＋ Añadir elemento';
-  addBtn.addEventListener('click', () => addItem(store, section));
-  section.appendChild(addBtn);
+  addBtn.addEventListener('click', () => addItem(store, inner));
+  inner.appendChild(addBtn);
+
+  body.appendChild(inner);
+  section.appendChild(body);
 
   return section;
 }
@@ -169,14 +196,14 @@ function startEditLabel(item, labelEl) {
 }
 
 // Muestra un campo inline al final de la sección para añadir un nuevo item a la tienda indicada
-function addItem(store, sectionEl) {
-  if (sectionEl.querySelector('.add-item-input-row')) return;
+function addItem(store, innerEl) {
+  if (innerEl.querySelector('.add-item-input-row')) return;
 
   const inputRow = document.createElement('div');
   inputRow.className = 'add-item-input-row';
   inputRow.innerHTML = `<input class="inline-input" type="text" placeholder="Nombre del elemento..." maxlength="60">`;
-  const addBtn = sectionEl.querySelector('.add-item-btn');
-  sectionEl.insertBefore(inputRow, addBtn);
+  const addBtn = innerEl.querySelector('.add-item-btn');
+  innerEl.insertBefore(inputRow, addBtn);
 
   const input = inputRow.querySelector('input');
   input.focus();

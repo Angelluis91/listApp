@@ -27,3 +27,6 @@ Thumbs.db
 
 # Coverage
 coverage/
+
+# Claude Code — memoria y reglas del proyecto (local, no subir al repo)
+.claude/
