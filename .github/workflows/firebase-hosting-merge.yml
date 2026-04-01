@@ -25,3 +25,4 @@ jobs:
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_LIST_APP_F4BCF }}'
           channelId: live
           projectId: list-app-f4bcf
+          target: listappv1
