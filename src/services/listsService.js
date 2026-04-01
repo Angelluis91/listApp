@@ -1,21 +1,22 @@
 // Operaciones de Firestore para las listas personalizadas: suscripción, guardado, eliminación y renombrado
-import { collection, doc, onSnapshot, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
 import { db }    from '../config/firebase.js';
 import { state } from '../state/appState.js';
 import { setSyncing, setOk, setError } from '../ui/syncIndicator.js';
 
 const COL_LISTS = 'compra_lists';
 
-// Suscribe a la colección de listas personalizadas ordenadas por fecha de creación
+// Suscribe a la colección de listas personalizadas; ordena en cliente para evitar índices compuestos
 export function subscribeLists(onUpdate) {
   if (state.listsListener) state.listsListener();
 
-  const q = query(collection(db, COL_LISTS), orderBy('createdAt', 'asc'));
-
   state.listsListener = onSnapshot(
-    q,
+    collection(db, COL_LISTS),
     (snap) => {
-      state.customLists = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Ordenar por createdAt en cliente — evita el índice compuesto que bloqueaba la query
+      state.customLists = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
       setOk();
       if (onUpdate) onUpdate();
     },

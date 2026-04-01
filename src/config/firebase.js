@@ -1,6 +1,6 @@
-// Inicializa la app de Firebase y exporta la instancia de Firestore para uso en toda la app
-import { initializeApp } from 'firebase/app';
-import { getFirestore }  from 'firebase/firestore';
+// Inicializa la app de Firebase y exporta la instancia de Firestore con caché local persistente
+import { initializeApp }                              from 'firebase/app';
+import { initializeFirestore, persistentLocalCache } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -12,4 +12,8 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+
+// persistentLocalCache activa IndexedDB como caché offline — carga instantánea en recargas
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache(),
+});

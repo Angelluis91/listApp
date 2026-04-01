@@ -1,14 +1,13 @@
 // Tests unitarios para listsService: verifica la suscripción, guardado y eliminación de listas personalizadas
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockOnSnapshot, mockSetDoc, mockDeleteDoc, mockDoc, mockCollection, mockQuery, mockOrderBy } = vi.hoisted(() => ({
-  mockOnSnapshot:  vi.fn(),
-  mockSetDoc:      vi.fn(),
-  mockDeleteDoc:   vi.fn(),
-  mockDoc:         vi.fn(() => ({})),
-  mockCollection:  vi.fn(() => ({})),
-  mockQuery:       vi.fn(col => col),
-  mockOrderBy:     vi.fn(),
+// vi.hoisted permite definir variables que pueden usarse dentro de vi.mock factories
+const { mockOnSnapshot, mockSetDoc, mockDeleteDoc, mockDoc, mockCollection } = vi.hoisted(() => ({
+  mockOnSnapshot: vi.fn(),
+  mockSetDoc:     vi.fn(),
+  mockDeleteDoc:  vi.fn(),
+  mockDoc:        vi.fn(() => ({})),
+  mockCollection: vi.fn(() => ({})),
 }));
 
 vi.mock('../../src/config/firebase.js', () => ({ db: {} }));
@@ -23,8 +22,6 @@ vi.mock('firebase/firestore', () => ({
   onSnapshot:  mockOnSnapshot,
   setDoc:      mockSetDoc,
   deleteDoc:   mockDeleteDoc,
-  query:       mockQuery,
-  orderBy:     mockOrderBy,
 }));
 
 import { subscribeLists, saveList, deleteListFromDB } from '../../src/services/listsService.js';
@@ -40,8 +37,9 @@ describe('listsService', () => {
 
   // ── subscribeLists ─────────────────────────────────────────────────────────
   describe('subscribeLists', () => {
-    it('llama a onSnapshot una vez', () => {
+    it('llama a onSnapshot directamente sobre la colección sin query ni orderBy', () => {
       subscribeLists(vi.fn());
+      expect(mockCollection).toHaveBeenCalledTimes(1);
       expect(mockOnSnapshot).toHaveBeenCalledTimes(1);
     });
 
@@ -59,20 +57,33 @@ describe('listsService', () => {
       expect(cancel1).toHaveBeenCalledTimes(1);
     });
 
-    it('mapea correctamente los docs de Firestore a state.customLists', () => {
+    it('mapea y ordena los docs por createdAt ascendente', () => {
       const onUpdate = vi.fn();
       const mockDocs = [
-        { id: 'id1', data: () => ({ name: 'Farmacia', emoji: '💊', items: [], createdAt: 1 }) },
         { id: 'id2', data: () => ({ name: 'Viaje',    emoji: '✈️',  items: [], createdAt: 2 }) },
+        { id: 'id1', data: () => ({ name: 'Farmacia', emoji: '💊', items: [], createdAt: 1 }) },
       ];
       mockOnSnapshot.mockImplementation((ref, successCb) => { successCb({ docs: mockDocs }); return vi.fn(); });
 
       subscribeLists(onUpdate);
 
       expect(state.customLists).toHaveLength(2);
+      // Deben quedar ordenadas por createdAt: Farmacia (1) antes que Viaje (2)
       expect(state.customLists[0].id).toBe('id1');
-      expect(state.customLists[0].name).toBe('Farmacia');
+      expect(state.customLists[1].id).toBe('id2');
       expect(onUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    it('funciona con docs sin createdAt (ordena como 0)', () => {
+      const mockDocs = [
+        { id: 'a', data: () => ({ name: 'Sin fecha', emoji: '📝', items: [] }) },
+      ];
+      mockOnSnapshot.mockImplementation((ref, successCb) => { successCb({ docs: mockDocs }); return vi.fn(); });
+
+      subscribeLists(vi.fn());
+
+      expect(state.customLists).toHaveLength(1);
+      expect(state.customLists[0].name).toBe('Sin fecha');
     });
 
     it('llama a setError y no a onUpdate cuando el snapshot falla', () => {
