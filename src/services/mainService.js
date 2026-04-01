@@ -1,15 +1,15 @@
-// Operaciones de Firestore para la lista principal: estado de marcado y estructura plana de items
+// Operaciones de Firestore para la lista principal: estado de marcado y estructura de items con tienda y precio
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { db }          from '../config/firebase.js';
-import { state }       from '../state/appState.js';
-import { MAIN_DATA }   from '../data/mainData.js';
+import { db }           from '../config/firebase.js';
+import { state }        from '../state/appState.js';
+import { MAIN_DATA, PRICES, DEFAULT_STORE } from '../data/mainData.js';
 import { setSyncing, setOk, setError } from '../ui/syncIndicator.js';
 
 const COL_MAIN      = 'compra_main';
 const DOC_STATE     = 'state';
 const DOC_STRUCTURE = 'structure';
 
-// Suscribe al estado de items marcados (checked/unchecked) y llama a onUpdate al recibir cambios
+// Suscribe al estado de items marcados y llama a onUpdate al recibir cambios
 export function subscribeMain(onUpdate) {
   if (state.mainListener) state.mainListener();
 
@@ -36,7 +36,20 @@ export async function saveMain() {
   }
 }
 
-// Suscribe a la estructura de items; migra automáticamente el formato antiguo de secciones si es necesario
+// Asigna store y price a un item si no los tiene; usa mainState para inferir la tienda en la migración
+function enrichItem(item, mainState) {
+  const enriched = { ...item };
+  if (!enriched.store) {
+    // Migración: si estaba marcado → mercadona, si no → alcampo
+    enriched.store = mainState[enriched.id] ? 'mercadona' : DEFAULT_STORE;
+  }
+  if (enriched.price === undefined || enriched.price === null) {
+    enriched.price = PRICES[enriched.label] ?? 0;
+  }
+  return enriched;
+}
+
+// Suscribe a la estructura de items; migra formato antiguo de secciones o items sin store/price
 export function subscribeStructure(onUpdate) {
   if (state.structureListener) state.structureListener();
 
@@ -46,22 +59,31 @@ export function subscribeStructure(onUpdate) {
       if (snap.exists()) {
         const data = snap.data();
         if (Array.isArray(data.sections)) {
-          // Migración: formato antiguo con secciones → aplanar a items planos
+          // Migración desde formato antiguo con secciones → items planos con store y price
           let idx = 0;
           state.mainStructure = [];
           data.sections.forEach(sec =>
-            sec.items.forEach(label => state.mainStructure.push({ id: 'item_' + idx++, label }))
+            sec.items.forEach(label => {
+              const id = 'item_' + idx++;
+              state.mainStructure.push(enrichItem({ id, label }, state.mainState));
+            })
           );
           saveStructure();
         } else {
-          state.mainStructure = data.items || [];
+          // Formato nuevo: enriquecer items que aún no tengan store/price
+          const items = data.items || [];
+          const needsMigration = items.some(i => !i.store || i.price === undefined);
+          state.mainStructure = items.map(i => enrichItem(i, state.mainState));
+          if (needsMigration) saveStructure();
         }
       } else {
-        // Primera vez: aplanar MAIN_DATA completo en una lista plana
+        // Primera vez: aplanar MAIN_DATA con store=alcampo y precio de PRICES
         let idx = 0;
         state.mainStructure = [];
         MAIN_DATA.forEach(sec =>
-          sec.items.forEach(label => state.mainStructure.push({ id: 'item_' + idx++, label }))
+          sec.items.forEach(label =>
+            state.mainStructure.push({ id: 'item_' + idx++, label, store: DEFAULT_STORE, price: PRICES[label] ?? 0 })
+          )
         );
         saveStructure();
       }
@@ -72,7 +94,7 @@ export function subscribeStructure(onUpdate) {
   );
 }
 
-// Persiste la lista plana de items en Firestore
+// Persiste la lista de items con store y price en Firestore
 export async function saveStructure() {
   setSyncing();
   try {

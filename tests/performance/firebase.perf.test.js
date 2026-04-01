@@ -34,9 +34,14 @@ function makeListDocs(n) {
   }));
 }
 
-// Genera un snapshot con N items planos para simular la lista principal
+// Genera un snapshot con N items planos (con store y price) para simular la lista principal
 function makeStructureSnap(count) {
-  const items = Array.from({ length: count }, (_, i) => ({ id: `item_${i}`, label: `Producto ${i}` }));
+  const items = Array.from({ length: count }, (_, i) => ({
+    id:    `item_${i}`,
+    label: `Producto ${i}`,
+    store: i % 2 === 0 ? 'mercadona' : 'alcampo',
+    price: 1.50,
+  }));
   return { exists: () => true, data: () => ({ items }) };
 }
 

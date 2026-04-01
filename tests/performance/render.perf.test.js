@@ -33,12 +33,14 @@ import { renderDetail }      from '../../src/ui/detail.js';
 // Monta el DOM mínimo necesario para cada pantalla
 function setupMainDOM() {
   document.body.innerHTML = `
-    <div id="selected-summary"></div>
     <input id="main-search" value="">
     <div id="main-sections"></div>
     <div id="s-total"></div>
     <div id="s-done"></div>
     <div id="g-prog" style="width:0%"></div>
+    <div id="total-mercadona"></div>
+    <div id="total-alcampo"></div>
+    <div id="total-global"></div>
   `;
 }
 
@@ -55,11 +57,13 @@ function setupDetailDOM() {
   `;
 }
 
-// Genera N items planos para la lista principal
+// Genera N items planos para la lista principal con store y price
 function makeStructure(count) {
   return Array.from({ length: count }, (_, i) => ({
     id:    `item_${i}`,
     label: `Producto ${i}`,
+    store: i % 2 === 0 ? 'mercadona' : 'alcampo',
+    price: 1.50 + (i % 5) * 0.5,
   }));
 }
 

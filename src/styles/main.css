@@ -116,6 +116,20 @@ input  { font-family: inherit; }
 .global-progress { margin-top: 10px; height: 4px; background: rgba(255,255,255,.2); border-radius: 3px; overflow: hidden; }
 .global-progress-fill { height: 100%; background: #6ee7b7; border-radius: 3px; transition: width .4s var(--ease); }
 
+/* ── Store totals bar ──────────────────────────────────────────────────────── */
+.store-totals-bar {
+  display: flex; gap: 8px; margin-top: 8px;
+}
+.store-total-block {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  padding: 7px 8px; border-radius: var(--r-sm); background: rgba(255,255,255,.1);
+}
+.store-total-block.mercadona { background: rgba(0,135,90,.25); }
+.store-total-block.alcampo   { background: rgba(230,92,0,.25); }
+.store-total-block.global    { background: rgba(255,255,255,.15); }
+.store-total-label  { font-size: .58rem; color: rgba(255,255,255,.65); text-transform: uppercase; letter-spacing: .08em; }
+.store-total-amount { font-size: .95rem; font-weight: 700; color: #fff; margin-top: 2px; }
+
 /* ── Content area ──────────────────────────────────────────────────────────── */
 .content { padding: 16px; max-width: 680px; margin: 0 auto; }
 
@@ -167,14 +181,38 @@ input  { font-family: inherit; }
 }
 .summary-chip-remove:hover { background: var(--primary); color: #fff; }
 
-/* ── Lista plana de items (pantalla principal simplificada) ────────────────── */
+/* ── Secciones por tienda ──────────────────────────────────────────────────── */
+.store-section { margin-bottom: 20px; }
+.store-section-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 4px 6px;
+}
+.store-section-title {
+  font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--store-color); border-left: 3px solid var(--store-color); padding-left: 8px;
+}
+
+/* ── Lista plana de items ──────────────────────────────────────────────────── */
 .items-flat-list {
   background: var(--surface); border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm); border: 1px solid var(--border);
-  margin-bottom: 12px; overflow: hidden;
+  margin-bottom: 8px; overflow: hidden;
 }
 .items-flat-list .item-row { border-bottom: 1px solid var(--border); }
 .items-flat-list .item-row:last-child { border-bottom: none; }
+
+/* ── Precio editable en fila de item ───────────────────────────────────────── */
+.item-price {
+  font-size: .75rem; font-weight: 600; color: var(--ink-3);
+  padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface-2); white-space: nowrap; flex-shrink: 0;
+  transition: background var(--dur), border-color var(--dur), color var(--dur);
+}
+.item-price:hover { background: var(--primary-light); border-color: #a5b4fc; color: var(--primary); }
+.item-row.checked .item-price { color: var(--success); border-color: var(--success-light); background: var(--success-light); }
+.price-input {
+  width: 72px; text-align: right; font-size: .8rem; flex-shrink: 0;
+}
 
 /* ── Section cards ─────────────────────────────────────────────────────────── */
 .section-card {

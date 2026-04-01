@@ -1,20 +1,39 @@
-// Renderiza y gestiona la pantalla principal (La Compra): lista plana de items con toggle, CRUD inline y búsqueda
+// Renderiza y gestiona la pantalla principal: dos secciones por tienda (Mercadona/Alcampo),
+// totales por tienda, precios editables inline y CRUD completo de items
 import { state }                   from '../state/appState.js';
 import { mainStats }               from '../utils/statsUtils.js';
 import { saveMain, saveStructure } from '../services/mainService.js';
 
 const CHECK_SVG = `<svg viewBox="0 0 12 9" fill="none"><path d="M1 4.5L4.5 8L11 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-// Actualiza los contadores y barra de progreso global del header
+const STORE_CONFIG = {
+  mercadona: { label: 'Mercadona', color: '#00875a', light: '#e6f4f0', border: '#b2dfdb' },
+  alcampo:   { label: 'Alcampo',   color: '#e65c00', light: '#fff3e0', border: '#ffcc80' },
+};
+
+// Calcula el total en euros de los items marcados de una tienda concreta
+function storeTotal(store) {
+  return state.mainStructure
+    .filter(i => i.store === store && state.mainState[i.id])
+    .reduce((sum, i) => sum + (i.price || 0), 0);
+}
+
+// Actualiza contadores globales, barra de progreso y totales por tienda en el header
 export function updateMainSummary() {
   const { total, done } = mainStats(state.mainStructure, state.mainState);
   document.getElementById('s-total').textContent = total;
   document.getElementById('s-done').textContent  = done;
   const pct = total > 0 ? ((done / total) * 100).toFixed(0) : 0;
   document.getElementById('g-prog').style.width = pct + '%';
+
+  const tm = storeTotal('mercadona');
+  const ta = storeTotal('alcampo');
+  document.getElementById('total-mercadona').textContent = tm.toFixed(2) + ' €';
+  document.getElementById('total-alcampo').textContent   = ta.toFixed(2) + ' €';
+  document.getElementById('total-global').textContent    = (tm + ta).toFixed(2) + ' €';
 }
 
-// Re-renderiza la pantalla principal: cabecera, búsqueda, items y botón de añadir
+// Re-renderiza las dos secciones de tienda con sus items filtrados
 export function renderMain() {
   updateMainSummary();
   const searchQuery = (document.getElementById('main-search')?.value || '').toLowerCase().trim();
@@ -22,30 +41,49 @@ export function renderMain() {
   if (!container) return;
   container.innerHTML = '';
 
-  let items = state.mainStructure;
-  if (state.showPendingOnly) items = items.filter(i => !state.mainState[i.id]);
-  if (searchQuery)           items = items.filter(i => i.label.toLowerCase().includes(searchQuery));
+  ['mercadona', 'alcampo'].forEach(store => {
+    let items = state.mainStructure.filter(i => i.store === store);
+    if (state.showPendingOnly) items = items.filter(i => !state.mainState[i.id]);
+    if (searchQuery)           items = items.filter(i => i.label.toLowerCase().includes(searchQuery));
+    container.appendChild(renderStoreSection(store, items));
+  });
+}
 
-  if (!state.mainStructure.length) {
-    container.innerHTML = `<div class="empty">Sin elementos todavía.<br>Pulsa el botón para añadir el primero.</div>`;
-  } else if (!items.length) {
-    container.innerHTML = `<div class="empty">Sin resultados</div>`;
-  } else {
-    const list = document.createElement('div');
-    list.className = 'items-flat-list';
+// Crea la tarjeta de una tienda con su lista de items y botón de añadir
+function renderStoreSection(store, items) {
+  const cfg = STORE_CONFIG[store];
+  const section = document.createElement('div');
+  section.className = 'store-section';
+  section.style.setProperty('--store-color', cfg.color);
+  section.style.setProperty('--store-light', cfg.light);
+  section.style.setProperty('--store-border', cfg.border);
+
+  const header = document.createElement('div');
+  header.className = 'store-section-header';
+  header.innerHTML = `<span class="store-section-title">${cfg.label}</span>`;
+  section.appendChild(header);
+
+  const list = document.createElement('div');
+  list.className = 'items-flat-list';
+
+  if (items.length) {
     items.forEach(item => list.appendChild(createItemRow(item)));
-    container.appendChild(list);
+  } else {
+    list.innerHTML = `<div class="empty" style="padding:14px;font-size:.82rem">Sin elementos</div>`;
   }
+  section.appendChild(list);
 
-  // Botón para añadir un nuevo item al final de la lista
+  // Botón para añadir un elemento a esta tienda
   const addBtn = document.createElement('button');
   addBtn.className = 'add-item-btn';
   addBtn.textContent = '＋ Añadir elemento';
-  addBtn.addEventListener('click', addItem);
-  container.appendChild(addBtn);
+  addBtn.addEventListener('click', () => addItem(store, section));
+  section.appendChild(addBtn);
+
+  return section;
 }
 
-// Crea el elemento DOM de una fila de item con checkbox, etiqueta y botones de acción
+// Crea el elemento DOM de una fila: checkbox, etiqueta editable, precio editable y acciones
 function createItemRow(item) {
   const checked = !!state.mainState[item.id];
   const row = document.createElement('div');
@@ -53,7 +91,9 @@ function createItemRow(item) {
   row.innerHTML = `
     <button class="item-check ${checked ? 'is-checked' : ''}">${checked ? CHECK_SVG : ''}</button>
     <span class="item-label">${item.label}</span>
+    <button class="item-price" title="Editar precio">${item.price > 0 ? item.price.toFixed(2) + ' €' : '—'}</button>
     <div class="item-actions">
+      <button class="icon-btn sm" title="Cambiar tienda" data-action="change-store">🔄</button>
       <button class="icon-btn sm" title="Renombrar" data-action="edit-item">✏️</button>
       <button class="icon-btn sm danger" title="Eliminar" data-action="delete-item">🗑</button>
     </div>
@@ -61,19 +101,15 @@ function createItemRow(item) {
 
   row.querySelector('.item-check').addEventListener('click', e => { e.stopPropagation(); toggleItem(item, row); });
   row.querySelector('.item-label').addEventListener('click', () => toggleItem(item, row));
-  row.querySelector('[data-action="edit-item"]').addEventListener('click', e => {
-    e.stopPropagation();
-    startEditItem(item, row.querySelector('.item-label'));
-  });
-  row.querySelector('[data-action="delete-item"]').addEventListener('click', e => {
-    e.stopPropagation();
-    deleteItem(item.id);
-  });
+  row.querySelector('.item-price').addEventListener('click', e => { e.stopPropagation(); startEditPrice(item, row.querySelector('.item-price')); });
+  row.querySelector('[data-action="change-store"]').addEventListener('click', e => { e.stopPropagation(); changeStore(item); });
+  row.querySelector('[data-action="edit-item"]').addEventListener('click', e => { e.stopPropagation(); startEditLabel(item, row.querySelector('.item-label')); });
+  row.querySelector('[data-action="delete-item"]').addEventListener('click', e => { e.stopPropagation(); deleteItem(item.id); });
 
   return row;
 }
 
-// Marca o desmarca un item y actualiza la UI sin re-renderizar toda la lista
+// Marca o desmarca un item, actualiza la UI y los totales sin re-renderizar
 function toggleItem(item, row) {
   state.mainState[item.id] = !state.mainState[item.id];
   const checked = state.mainState[item.id];
@@ -85,16 +121,62 @@ function toggleItem(item, row) {
   saveMain();
 }
 
-// Muestra un campo inline al final de la lista para añadir un nuevo item
-function addItem() {
-  const container = document.getElementById('main-sections');
-  if (container.querySelector('.add-item-input-row')) return;
+// Activa la edición inline del precio de un item
+function startEditPrice(item, priceBtn) {
+  const input = document.createElement('input');
+  input.type      = 'number';
+  input.className = 'inline-input price-input';
+  input.value     = item.price > 0 ? item.price : '';
+  input.min       = '0';
+  input.step      = '0.01';
+  input.placeholder = '0.00';
+  priceBtn.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let saved = false;
+  const save = async () => {
+    if (saved) return;
+    saved = true;
+    const val = parseFloat(input.value);
+    item.price = isNaN(val) || val < 0 ? 0 : Math.round(val * 100) / 100;
+    await saveStructure();
+    renderMain();
+  };
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { saved = true; renderMain(); }
+  });
+}
+
+// Mueve un item a la otra tienda y persiste el cambio
+async function changeStore(item) {
+  item.store = item.store === 'mercadona' ? 'alcampo' : 'mercadona';
+  await saveStructure();
+  renderMain();
+}
+
+// Activa la edición inline del nombre de un item
+function startEditLabel(item, labelEl) {
+  startInlineEdit(labelEl, item.label, async (newLabel) => {
+    if (newLabel !== item.label) {
+      item.label = newLabel;
+      await saveStructure();
+    }
+    renderMain();
+  });
+}
+
+// Muestra un campo inline al final de la sección para añadir un nuevo item a la tienda indicada
+function addItem(store, sectionEl) {
+  if (sectionEl.querySelector('.add-item-input-row')) return;
 
   const inputRow = document.createElement('div');
   inputRow.className = 'add-item-input-row';
   inputRow.innerHTML = `<input class="inline-input" type="text" placeholder="Nombre del elemento..." maxlength="60">`;
-  const addBtn = container.querySelector('.add-item-btn');
-  container.insertBefore(inputRow, addBtn);
+  const addBtn = sectionEl.querySelector('.add-item-btn');
+  sectionEl.insertBefore(inputRow, addBtn);
 
   const input = inputRow.querySelector('input');
   input.focus();
@@ -103,7 +185,7 @@ function addItem() {
     const label = input.value.trim();
     if (label && !state.mainStructure.find(i => i.label === label)) {
       const id = 'item_' + Date.now();
-      state.mainStructure.push({ id, label });
+      state.mainStructure.push({ id, label, store, price: 0 });
       state.mainState[id] = false;
       await saveStructure();
       saveMain();
@@ -124,17 +206,6 @@ async function deleteItem(itemId) {
   saveMain();
   await saveStructure();
   renderMain();
-}
-
-// Activa la edición inline del nombre de un item y persiste el cambio si se modifica
-function startEditItem(item, labelEl) {
-  startInlineEdit(labelEl, item.label, async (newLabel) => {
-    if (newLabel !== item.label) {
-      item.label = newLabel;
-      await saveStructure();
-    }
-    renderMain();
-  });
 }
 
 // Reemplaza un elemento de texto por un input editable y llama a onSave al confirmar
@@ -167,7 +238,7 @@ export function togglePending() {
   renderMain();
 }
 
-// Desmarca todos los items de la lista principal y sincroniza con Firestore
+// Desmarca todos los items y sincroniza con Firestore
 export function clearAll() {
   state.mainStructure.forEach(item => { state.mainState[item.id] = false; });
   saveMain();
