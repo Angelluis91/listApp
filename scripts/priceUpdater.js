@@ -18,8 +18,18 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 // Devuelve [{ name, price }]. Lanza excepción si falla la petición inicial de categorías.
 // Las categorías individuales que fallen se omiten silenciosamente.
 export async function fetchMercadonaProducts() {
-  const res = await fetch(MERCADONA_CATEGORIES_URL, { headers: BROWSER_HEADERS });
-  if (!res.ok) throw new Error(`Mercadona categories HTTP ${res.status}`);
+  let res;
+  try {
+    res = await fetch(MERCADONA_CATEGORIES_URL, { headers: BROWSER_HEADERS });
+  } catch (fetchErr) {
+    throw new Error(`Mercadona fetch falló (posible bloqueo de IP): ${fetchErr?.message || String(fetchErr)}`);
+  }
+
+  console.log(`Mercadona HTTP status: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Mercadona categories HTTP ${res.status} — ${body.slice(0, 200)}`);
+  }
 
   const data = await res.json();
 

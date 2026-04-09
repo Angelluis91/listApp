@@ -50,8 +50,11 @@ async function main() {
     console.log(`Mercadona: ${mercadonaProducts.length} productos`);
   } else {
     const err = mercadonaResult.reason;
-    console.log(`Mercadona: ERROR — ${err?.message || err || 'desconocido'}`);
-    if (err?.stack) console.log(err.stack);
+    console.log(`Mercadona ERROR tipo: ${typeof err}`);
+    console.log(`Mercadona ERROR raw: ${String(err)}`);
+    try { console.log(`Mercadona ERROR json: ${JSON.stringify(err)}`); } catch {}
+    if (err?.message) console.log(`Mercadona ERROR message: ${err.message}`);
+    if (err?.stack)   console.log(`Mercadona ERROR stack: ${err.stack}`);
   }
   console.log(`Alcampo:   ${alcampoOk ? alcampoProducts.length + ' productos' : 'sin datos (web dinámica)'}`);
 
