@@ -64,7 +64,7 @@ export function renderLists() {
         </div>
       </div>
       <span class="list-card-arrow">›</span>
-      ${hasReminder ? `<a class="icon-btn sm gcal-btn" href="${buildGCalUrl(list)}" target="_blank" rel="noopener" title="Añadir a Google Calendar">📆</a>` : ''}
+      <button class="icon-btn sm reminder-btn${hasReminder ? ' has-reminder' : ''}" data-action="reminder-list" data-id="${list.id}" title="${hasReminder ? 'Cambiar recordatorio' : 'Añadir recordatorio'}">🔔</button>
       <button class="icon-btn sm list-card-edit" data-action="edit-list" data-id="${list.id}" title="Editar lista">✏️</button>
       <button class="icon-btn sm danger list-card-delete" title="Eliminar">🗑</button>
     `;

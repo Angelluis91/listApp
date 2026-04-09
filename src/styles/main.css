@@ -421,20 +421,60 @@ input  { font-family: inherit; }
 
 /* ── Detail screen ─────────────────────────────────────────────────────────── */
 .detail-header {
-  background: var(--surface); padding: 14px 20px;
+  background: var(--primary); padding: 14px 20px 16px;
   position: sticky; top: var(--tab-h); z-index: 100;
-  border-bottom: 1px solid var(--border);
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--shadow);
+}
+.detail-header-top {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
 }
 .header-back {
-  background: var(--bg); border: 1px solid var(--border);
+  background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25);
   border-radius: var(--r-sm); padding: 7px 14px;
-  font-size: .8rem; font-weight: 500; color: var(--ink-2);
+  font-size: .8rem; font-weight: 500; color: #fff;
   display: flex; align-items: center; gap: 5px;
-  transition: all var(--dur);
+  transition: background var(--dur);
 }
-.header-back:hover { background: var(--border); }
-.detail-header .header-row { margin-bottom: 0; }
+.header-back:hover { background: rgba(255,255,255,.25); }
+.detail-edit-btn {
+  background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25);
+  border-radius: var(--r-sm); padding: 6px 12px;
+  font-size: .78rem; font-weight: 500; color: #fff;
+  transition: background var(--dur);
+}
+.detail-edit-btn:hover { background: rgba(255,255,255,.25); }
+
+/* Hero: emoji grande + nombre + recordatorio */
+.detail-hero {
+  display: flex; align-items: center; gap: 14px; margin-bottom: 14px;
+}
+.detail-hero-emoji {
+  font-size: 2.8rem; line-height: 1; flex-shrink: 0;
+  background: rgba(255,255,255,.15); border-radius: var(--r);
+  width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;
+}
+.detail-hero-body { flex: 1; min-width: 0; }
+.detail-hero-name {
+  font-size: 1.25rem; font-weight: 700; color: #fff;
+  letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.detail-hero-reminder {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 5px;
+  font-size: .75rem; font-weight: 500; color: rgba(255,255,255,.85);
+}
+.detail-hero-reminder.hidden { display: none; }
+.detail-hero-reminder.expired { color: rgba(255,255,255,.5); text-decoration: line-through; }
+.detail-gcal-link {
+  color: #a5f3fc; font-size: .72rem; font-weight: 600;
+  text-decoration: none; border: 1px solid rgba(165,243,252,.4);
+  border-radius: 999px; padding: 1px 8px;
+  transition: background var(--dur);
+}
+.detail-gcal-link:hover { background: rgba(165,243,252,.15); }
+
+/* Botón 🔔 en tarjeta de lista */
+.reminder-btn { color: var(--ink-4); }
+.reminder-btn.has-reminder { color: var(--primary); }
 
 .add-item-bar {
   display: flex; gap: 8px; padding: 12px 16px;

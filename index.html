@@ -89,10 +89,19 @@
   <!-- SCREEN: DETALLE LISTA -->
   <div class="screen" id="screen-detail">
     <div class="detail-header" id="detail-header">
-      <div class="header-row">
+      <div class="detail-header-top">
         <button class="header-back" id="btn-back">← Volver</button>
-        <div id="detail-title" class="header-title" style="font-size:1.2rem"></div>
-        <div style="width:60px"></div>
+        <button class="detail-edit-btn" id="btn-detail-edit" title="Editar lista">✏️ Editar</button>
+      </div>
+      <div class="detail-hero">
+        <div class="detail-hero-emoji" id="detail-hero-emoji"></div>
+        <div class="detail-hero-body">
+          <div class="detail-hero-name" id="detail-title"></div>
+          <div class="detail-hero-reminder hidden" id="detail-reminder">
+            <span id="detail-reminder-text"></span>
+            <a class="detail-gcal-link" id="detail-gcal-link" href="#" target="_blank" rel="noopener">+ Google Calendar</a>
+          </div>
+        </div>
       </div>
       <div class="summary-bar">
         <div class="sum-block">

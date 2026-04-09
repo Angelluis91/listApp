@@ -7,6 +7,7 @@ import { renderLists }                         from './ui/customLists.js';
 import { addDetailItem }                       from './ui/detail.js';
 import { openModal, closeModal, createList, openEditModal, clearReminder } from './ui/modal.js';
 import { switchTab, goBackToLists }            from './ui/navigation.js';
+import { state }                               from './state/appState.js';
 
 // ── Navegación por tabs ─────────────────────────────────────────────────────
 document.getElementById('tab-main').addEventListener('click', () => switchTab('main'));
@@ -32,10 +33,17 @@ document.getElementById('btn-clear-reminder').addEventListener('click', clearRem
 document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
 document.getElementById('modal-name').addEventListener('keydown', e => { if (e.key === 'Enter') createList(); });
 
-// Delegación de eventos para el botón de editar lista dentro del contenedor de listas
+// Botón editar lista desde la pantalla de detalle
+document.getElementById('btn-detail-edit').addEventListener('click', () => {
+  if (state.currentListId) openEditModal(state.currentListId);
+});
+
+// Delegación de eventos para editar y recordatorio en el contenedor de listas
 document.getElementById('lists-container').addEventListener('click', e => {
-  const editBtn = e.target.closest('[data-action="edit-list"]');
-  if (editBtn) { e.stopPropagation(); openEditModal(editBtn.dataset.id); }
+  const editBtn     = e.target.closest('[data-action="edit-list"]');
+  const reminderBtn = e.target.closest('[data-action="reminder-list"]');
+  if (editBtn)     { e.stopPropagation(); openEditModal(editBtn.dataset.id); }
+  if (reminderBtn) { e.stopPropagation(); openEditModal(reminderBtn.dataset.id); }
 });
 
 // ── Inicio: suscribir a Firestore ───────────────────────────────────────────
