@@ -1,0 +1,28 @@
+# Actualiza precios de productos cada lunes a las 6am UTC usando Mercadona API + Alcampo web + Claude LLM
+name: Update product prices weekly
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'   # Lunes 6:00 UTC
+  workflow_dispatch:        # Permite ejecutar manualmente desde GitHub Actions
+
+jobs:
+  update-prices:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install script dependencies
+        run: npm install
+        working-directory: scripts
+
+      - name: Run price update script
+        run: node scripts/updatePrices.js
+        env:
+          ANTHROPIC_API_KEY:            ${{ secrets.ANTHROPIC_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}

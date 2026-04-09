@@ -1,0 +1,8 @@
+{
+  "name": "update-prices-script",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.0",
+    "firebase-admin": "^12.0.0"
+  }
+}
