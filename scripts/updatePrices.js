@@ -46,8 +46,14 @@ async function main() {
   const mercadonaOk       = mercadonaProducts.length > 0;
   const alcampoOk         = alcampoProducts.length  > 0;
 
-  console.log(`Mercadona: ${mercadonaOk ? mercadonaProducts.length + ' productos' : 'ERROR — ' + mercadonaResult.reason?.message}`);
-  console.log(`Alcampo:   ${alcampoOk   ? alcampoProducts.length  + ' productos' : 'sin datos (web dinámica)'}`);
+  if (mercadonaOk) {
+    console.log(`Mercadona: ${mercadonaProducts.length} productos`);
+  } else {
+    const err = mercadonaResult.reason;
+    console.log(`Mercadona: ERROR — ${err?.message || err || 'desconocido'}`);
+    if (err?.stack) console.log(err.stack);
+  }
+  console.log(`Alcampo:   ${alcampoOk ? alcampoProducts.length + ' productos' : 'sin datos (web dinámica)'}`);
 
   if (!mercadonaOk) {
     await writeLog({ status: 'error', message: 'No se pudo acceder a Mercadona', updated: 0 });

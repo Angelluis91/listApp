@@ -20,9 +20,18 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 export async function fetchMercadonaProducts() {
   const res = await fetch(MERCADONA_CATEGORIES_URL, { headers: BROWSER_HEADERS });
   if (!res.ok) throw new Error(`Mercadona categories HTTP ${res.status}`);
+
   const data = await res.json();
 
-  const topCategories = data.results || data;
+  // La API puede devolver { results: [...] } o directamente un array
+  const topCategories = Array.isArray(data.results) ? data.results
+                      : Array.isArray(data)          ? data
+                      : [];
+
+  if (topCategories.length === 0) {
+    throw new Error(`Mercadona: estructura inesperada — keys: ${Object.keys(data).join(', ')}`);
+  }
+
   const products = [];
 
   for (const cat of topCategories.slice(0, 25)) {
@@ -41,7 +50,9 @@ export async function fetchMercadonaProducts() {
         });
       });
       await delay(120); // pausa educada para no sobrecargar la API
-    } catch { /* ignorar categorías que fallen individualmente */ }
+    } catch (err) {
+      console.warn(`Mercadona: categoría ${cat.id} falló — ${err.message}`);
+    }
   }
 
   return products;
