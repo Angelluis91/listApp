@@ -569,6 +569,21 @@ input  { font-family: inherit; }
   text-decoration: line-through;
 }
 .gcal-btn { text-decoration: none; font-size: .9rem; }
+.reminder-gcal-link {
+  color: var(--primary); font-size: .68rem; font-weight: 600;
+  text-decoration: none; border: 1px solid #c7d2fe;
+  border-radius: 999px; padding: 1px 7px; white-space: nowrap;
+  transition: background var(--dur);
+}
+.reminder-gcal-link:hover { background: var(--primary-light); }
+.reminder-synced {
+  color: var(--success); font-size: .68rem; font-weight: 600;
+  border: 1px solid var(--success-light); border-radius: 999px; padding: 1px 7px;
+}
+.detail-gcal-link.synced {
+  color: #a5f3fc; opacity: .7; pointer-events: none; text-decoration: none;
+  border-color: rgba(165,243,252,.3);
+}
 
 /* ── Reminder input en modal ───────────────────────────────────────────────── */
 .modal-label-optional { font-size: .68rem; font-weight: 400; color: var(--ink-4); text-transform: none; letter-spacing: 0; }

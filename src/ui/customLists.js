@@ -1,30 +1,8 @@
 // Renderiza la pantalla "Mis Listas": tarjetas de listas personalizadas con progreso, edición y eliminación
-import { state }            from '../state/appState.js';
-import { detailStats }      from '../utils/statsUtils.js';
-import { deleteListFromDB } from '../services/listsService.js';
-import { openList }         from './detail.js';
-
-// Genera la URL de Google Calendar para crear un evento con los datos de la lista
-function buildGCalUrl(list) {
-  const start = new Date(list.reminder);
-  const end   = new Date(start.getTime() + 60 * 60 * 1000); // duración 1 hora
-  const fmt   = d => d.toISOString().replace(/[-:]/g, '').slice(0, 15);
-  const params = new URLSearchParams({
-    action:  'TEMPLATE',
-    text:    `${list.emoji} ${list.name}`,
-    dates:   `${fmt(start)}/${fmt(end)}`,
-    details: `Recordatorio de tu lista "${list.name}" en List Up`,
-  });
-  return `https://calendar.google.com/calendar/render?${params}`;
-}
-
-// Formatea una fecha ISO como "12 abr · 14:30" para mostrar en la tarjeta
-function formatReminder(isoString) {
-  const d = new Date(isoString);
-  const day   = d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-  const time  = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-  return `${day} · ${time}`;
-}
+import { state }                          from '../state/appState.js';
+import { detailStats, buildGCalUrl, formatReminder } from '../utils/statsUtils.js';
+import { deleteListFromDB }              from '../services/listsService.js';
+import { openList }                      from './detail.js';
 
 // Devuelve true si el recordatorio ya ha pasado
 function isExpired(isoString) {
@@ -57,7 +35,11 @@ export function renderLists() {
         <div class="list-card-meta">${done}/${total} seleccionados</div>
         ${hasReminder ? `
           <div class="reminder-badge${expired ? ' expired' : ''}">
-            📅 ${formatReminder(list.reminder)}
+            ${formatReminder(list.reminder)}
+            ${list.reminderSynced
+              ? `<span class="reminder-synced">✓ Calendar</span>`
+              : `<a class="reminder-gcal-link" href="${buildGCalUrl(list)}" target="_blank" rel="noopener">+ Google Calendar</a>`
+            }
           </div>` : ''}
         <div class="list-card-prog">
           <div class="list-card-prog-fill" style="width:${pct}%"></div>

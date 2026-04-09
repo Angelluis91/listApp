@@ -3,6 +3,7 @@ import { state }                    from '../state/appState.js';
 import { EMOJIS }                   from '../data/mainData.js';
 import { saveList, updateListMeta } from '../services/listsService.js';
 import { openList }                 from './detail.js';
+import { buildGCalUrl }             from '../utils/statsUtils.js';
 
 // ID de la lista que se está editando; null cuando el modal está en modo creación
 let editingListId = null;
@@ -64,23 +65,44 @@ export async function createList() {
   const name = nameInput.value.trim();
   if (!name) { nameInput.focus(); return; }
 
-  // Convertir datetime-local a ISO string; null si no hay fecha
   const reminder = reminderInput.value ? new Date(reminderInput.value).toISOString() : null;
 
   closeModal();
 
   if (editingListId) {
-    // Modo edición: actualizar nombre, emoji y recordatorio sin tocar los items
-    await updateListMeta(editingListId, { name, emoji: state.selectedEmoji, reminder });
+    const oldList     = state.customLists.find(l => l.id === editingListId);
+    const oldReminder = oldList?.reminder ?? null;
+    // Si el recordatorio cambió, marcar como no sincronizado
+    const reminderSynced = reminder === oldReminder ? (oldList?.reminderSynced ?? false) : false;
+
+    await updateListMeta(editingListId, { name, emoji: state.selectedEmoji, reminder, reminderSynced });
+
+    // Preguntar solo si hay recordatorio nuevo o modificado
+    if (reminder && reminder !== oldReminder) {
+      await promptCalendar({ ...oldList, name, emoji: state.selectedEmoji, reminder }, editingListId);
+    }
+
     editingListId = null;
     return;
   }
 
-  // Modo creación: guardar en Firestore y abrir detalle
+  // Modo creación
   const id   = Date.now().toString();
-  const list = { id, name, emoji: state.selectedEmoji, items: [], createdAt: Date.now(), reminder };
+  const list = { id, name, emoji: state.selectedEmoji, items: [], createdAt: Date.now(), reminder, reminderSynced: false };
   await saveList(list);
+
+  // Preguntar si tiene recordatorio
+  if (reminder) await promptCalendar(list, id);
+
   openList(id);
+}
+
+// Muestra el diálogo de Google Calendar y actualiza reminderSynced si el usuario acepta
+async function promptCalendar(list, listId) {
+  const ok = confirm('¿Añadir el recordatorio a Google Calendar para recibir una notificación en tu móvil?');
+  if (!ok) return;
+  window.open(buildGCalUrl(list), '_blank');
+  await updateListMeta(listId, { reminderSynced: true });
 }
 
 // Limpia el campo de recordatorio del modal (botón ✕)

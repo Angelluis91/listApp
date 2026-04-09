@@ -37,13 +37,14 @@ export async function saveList(list) {
   }
 }
 
-// Actualiza nombre, emoji y/o recordatorio de una lista sin tocar sus items
-export async function updateListMeta(listId, { name, emoji, reminder }) {
+// Actualiza nombre, emoji, recordatorio y/o estado de sincronización con Calendar
+export async function updateListMeta(listId, { name, emoji, reminder, reminderSynced }) {
   const list = state.customLists.find(l => l.id === listId);
   if (!list) return;
-  if (name     !== undefined) list.name     = name;
-  if (emoji    !== undefined) list.emoji    = emoji;
-  if (reminder !== undefined) list.reminder = reminder;
+  if (name           !== undefined) list.name           = name;
+  if (emoji          !== undefined) list.emoji          = emoji;
+  if (reminder       !== undefined) list.reminder       = reminder;
+  if (reminderSynced !== undefined) list.reminderSynced = reminderSynced;
   await saveList(list);
 }
 
