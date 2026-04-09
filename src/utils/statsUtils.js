@@ -1,10 +1,14 @@
 // Funciones puras para calcular estadísticas de progreso y utilidades de recordatorio
 
 // Genera la URL de Google Calendar para crear un evento con los datos de la lista
+// Usa hora LOCAL del dispositivo (no UTC) para que Google Calendar muestre la hora correcta
 export function buildGCalUrl(list) {
-  const start  = new Date(list.reminder);
-  const end    = new Date(start.getTime() + 60 * 60 * 1000); // duración 1 hora
-  const fmt    = d => d.toISOString().replace(/[-:]/g, '').slice(0, 15);
+  const start = new Date(list.reminder);
+  const end   = new Date(start.getTime() + 60 * 60 * 1000); // duración 1 hora
+  const fmt   = d => {
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+  };
   const params = new URLSearchParams({
     action:  'TEMPLATE',
     text:    `${list.emoji} ${list.name}`,

@@ -70,39 +70,55 @@ export async function createList() {
   closeModal();
 
   if (editingListId) {
-    const oldList     = state.customLists.find(l => l.id === editingListId);
-    const oldReminder = oldList?.reminder ?? null;
-    // Si el recordatorio cambió, marcar como no sincronizado
-    const reminderSynced = reminder === oldReminder ? (oldList?.reminderSynced ?? false) : false;
+    const oldList      = state.customLists.find(l => l.id === editingListId);
+    const oldReminder  = oldList?.reminder ?? null;
+    const reminderChanged = reminder !== oldReminder;
+    const reminderSynced  = reminderChanged ? false : (oldList?.reminderSynced ?? false);
 
     await updateListMeta(editingListId, { name, emoji: state.selectedEmoji, reminder, reminderSynced });
 
-    // Preguntar solo si hay recordatorio nuevo o modificado
-    if (reminder && reminder !== oldReminder) {
-      await promptCalendar({ ...oldList, name, emoji: state.selectedEmoji, reminder }, editingListId);
+    if (reminder && reminderChanged) {
+      const wasSynced = oldList?.reminderSynced && oldReminder;
+      const synced = await promptCalendar(
+        { ...oldList, name, emoji: state.selectedEmoji, reminder },
+        wasSynced
+      );
+      // Si el usuario aceptó, marcar como sincronizado en Firestore
+      if (synced) await updateListMeta(editingListId, { reminderSynced: true });
     }
 
     editingListId = null;
     return;
   }
 
-  // Modo creación
+  // Modo creación: state.customLists aún no tiene la lista cuando confirm() bloquea,
+  // así que guardamos reminderSynced directamente en el objeto y llamamos saveList
   const id   = Date.now().toString();
   const list = { id, name, emoji: state.selectedEmoji, items: [], createdAt: Date.now(), reminder, reminderSynced: false };
   await saveList(list);
 
-  // Preguntar si tiene recordatorio
-  if (reminder) await promptCalendar(list, id);
+  if (reminder) {
+    const synced = await promptCalendar(list, false);
+    if (synced) {
+      list.reminderSynced = true;
+      await saveList(list); // Guardar directamente, updateListMeta no encontrará la lista aún
+    }
+  }
 
   openList(id);
 }
 
-// Muestra el diálogo de Google Calendar y actualiza reminderSynced si el usuario acepta
-async function promptCalendar(list, listId) {
-  const ok = confirm('¿Añadir el recordatorio a Google Calendar para recibir una notificación en tu móvil?');
-  if (!ok) return;
+// Muestra el diálogo de Calendar y abre la URL si el usuario acepta.
+// Devuelve true si el usuario añadió el evento, false si canceló.
+// wasPreviouslySynced: si true, avisa de que el evento anterior no se borra solo.
+async function promptCalendar(list, wasPreviouslySynced) {
+  const msg = wasPreviouslySynced
+    ? '¿Añadir el nuevo recordatorio a Google Calendar?\n\n⚠️ El evento anterior no se elimina automáticamente — bórralo en Google Calendar para evitar duplicados.'
+    : '¿Añadir el recordatorio a Google Calendar para recibir una notificación en tu móvil?';
+  const ok = confirm(msg);
+  if (!ok) return false;
   window.open(buildGCalUrl(list), '_blank');
-  await updateListMeta(listId, { reminderSynced: true });
+  return true;
 }
 
 // Limpia el campo de recordatorio del modal (botón ✕)

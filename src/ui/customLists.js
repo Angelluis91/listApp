@@ -57,6 +57,9 @@ export function renderLists() {
       e.stopPropagation();
       deleteList(list.id);
     });
+    // Evitar que el link de Google Calendar dentro de list-card-info abra también la lista
+    const gcalLink = card.querySelector('.reminder-gcal-link');
+    if (gcalLink) gcalLink.addEventListener('click', e => e.stopPropagation());
 
     container.appendChild(card);
   });
