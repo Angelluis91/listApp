@@ -217,6 +217,11 @@ input  { font-family: inherit; }
   background: var(--bg); padding: 1px 7px; border-radius: 999px;
   border: 1px solid var(--border);
 }
+.store-price-badge {
+  font-size: .62rem; font-weight: 600; color: var(--success);
+  background: var(--success-light); border: 1px solid #a7f3d0;
+  border-radius: 999px; padding: 1px 7px; white-space: nowrap; flex-shrink: 0;
+}
 .store-chevron {
   width: 14px; height: 14px; color: var(--ink-4); flex-shrink: 0;
   transition: transform var(--dur) var(--ease);

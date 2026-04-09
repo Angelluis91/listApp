@@ -53,13 +53,25 @@ export function renderMain() {
   });
 }
 
+// Devuelve la fecha de última actualización exitosa de precios de una tienda, o null si nunca
+function storeLastPriceUpdate(store) {
+  const dates = state.mainStructure
+    .filter(i => i.store === store && i.priceStatus === 'ok' && i.priceLastUpdated)
+    .map(i => i.priceLastUpdated)
+    .sort();
+  if (!dates.length) return null;
+  const d = new Date(dates[dates.length - 1]);
+  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+}
+
 // Crea la tarjeta de una tienda con cabecera desplegable, lista de items y botón de añadir
 function renderStoreSection(store, items) {
-  const cfg       = STORE_CONFIG[store];
-  const collapsed = collapsedStores.has(store);
+  const cfg        = STORE_CONFIG[store];
+  const collapsed  = collapsedStores.has(store);
+  const lastUpdate = storeLastPriceUpdate(store);
 
   // Contar cuántos items están marcados para mostrar en el badge del header
-  const allItems = state.mainStructure.filter(i => i.store === store);
+  const allItems  = state.mainStructure.filter(i => i.store === store);
   const doneCount = allItems.filter(i => state.mainState[i.id]).length;
 
   const section = document.createElement('div');
@@ -73,6 +85,7 @@ function renderStoreSection(store, items) {
   header.className = 'store-section-header';
   header.innerHTML = `
     <span class="store-section-title">${cfg.label}</span>
+    ${lastUpdate ? `<span class="store-price-badge" title="Última actualización de precios">✓ ${lastUpdate}</span>` : ''}
     <span class="store-section-count">${doneCount}/${allItems.length}</span>
     ${CHEVRON_SVG}
   `;
