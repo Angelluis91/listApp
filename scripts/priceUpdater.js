@@ -168,13 +168,19 @@ FORMATO DE RESPUESTA:
 
   const response = await anthropicClient.messages.create({
     model:      'claude-haiku-4-5-20251001',
-    max_tokens: 4096,
+    max_tokens: 8192, // 166 productos × ~30 tokens por entrada ≈ 5000 tokens de respuesta
     messages:   [{ role: 'user', content: prompt }],
   });
 
-  const text       = response.content[0].text.trim();
+  const text = response.content[0].text.trim();
+
+  // Verificar si la respuesta fue cortada por el límite de tokens
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error('Claude cortó la respuesta por max_tokens — aumentar límite o reducir productos');
+  }
+
   // Extraer JSON aunque Claude añada texto alrededor
-  const jsonMatch  = text.match(/\{[\s\S]*\}/);
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Claude no devolvió JSON válido');
   return JSON.parse(jsonMatch[0]).prices || {};
 }
