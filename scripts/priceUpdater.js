@@ -25,25 +25,12 @@ export async function fetchMercadonaProducts() {
     throw new Error(`Mercadona fetch falló (posible bloqueo de IP): ${fetchErr?.message || String(fetchErr)}`);
   }
 
-  console.log(`Mercadona HTTP status: ${res.status}`);
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`Mercadona categories HTTP ${res.status} — ${body.slice(0, 200)}`);
   }
 
   const data = await res.json();
-
-  // Log de diagnóstico: ver la estructura real que devuelve la API
-  console.log(`Mercadona data type: ${typeof data}`);
-  console.log(`Mercadona data keys: ${Array.isArray(data) ? '[array]' : Object.keys(data).join(', ')}`);
-  if (!Array.isArray(data)) {
-    for (const key of Object.keys(data).slice(0, 5)) {
-      const val = data[key];
-      console.log(`  [${key}]: ${Array.isArray(val) ? `array(${val.length})` : typeof val}`);
-    }
-  } else {
-    console.log(`  Array length: ${data.length}, primer item keys: ${data[0] ? Object.keys(data[0]).join(', ') : 'vacío'}`);
-  }
 
   // La API puede devolver { results: [...] } o directamente un array
   const topCategories = Array.isArray(data.results) ? data.results
@@ -54,40 +41,37 @@ export async function fetchMercadonaProducts() {
     throw new Error(`Mercadona: estructura inesperada — keys: ${Array.isArray(data) ? '[array vacío]' : Object.keys(data).join(', ')}`);
   }
 
-  // Log del primer item para ver su estructura real
-  const firstCat = topCategories[0];
-  console.log(`Mercadona primer item keys: ${Object.keys(firstCat).join(', ')}`);
-  console.log(`Mercadona primer item: ${JSON.stringify(firstCat).slice(0, 300)}`);
-
+  // La API devuelve categorías padre en results[].
+  // Los productos están en las SUBCATEGORÍAS: results[].categories[].id
+  // Hay que iterar results → categories → fetch por subcat id → extraer productos
   const products = [];
 
-  for (const cat of topCategories.slice(0, 5)) { // solo 5 categorías en modo debug
-    try {
-      const catUrl = `${MERCADONA_CATEGORIES_URL}${cat.id}/`;
-      console.log(`Mercadona fetching: ${catUrl}`);
-      const catRes = await fetch(catUrl, { headers: BROWSER_HEADERS });
-      console.log(`Mercadona cat ${cat.id} status: ${catRes.status}`);
-      if (!catRes.ok) continue;
-      const catData = await catRes.json();
-      console.log(`Mercadona cat ${cat.id} keys: ${Object.keys(catData).join(', ')}`);
-      const subcats = catData.categories || [catData];
-      console.log(`Mercadona cat ${cat.id} subcats: ${subcats.length}`);
-      subcats.forEach(sub => {
-        console.log(`  subcat keys: ${Object.keys(sub).join(', ')}, products: ${(sub.products || []).length}`);
-        (sub.products || []).forEach(p => {
-          const price = p.price_instructions?.unit_price ?? p.price_instructions?.bulk_price;
-          if (p.display_name && price != null) {
-            products.push({ name: p.display_name, price: Number(price) });
-          }
+  for (const parentCat of topCategories.slice(0, 26)) {
+    const subcats = parentCat.categories || [];
+    for (const sub of subcats) {
+      try {
+        const subRes = await fetch(`${MERCADONA_CATEGORIES_URL}${sub.id}/`, { headers: BROWSER_HEADERS });
+        if (!subRes.ok) continue;
+        const subData = await subRes.json();
+        // La subcategoría puede tener products directamente o agruparlos en sub-subcategorías
+        const productLists = subData.categories?.length
+          ? subData.categories.map(s => s.products || [])
+          : [subData.products || []];
+        productLists.forEach(list => {
+          list.forEach(p => {
+            const price = p.price_instructions?.unit_price ?? p.price_instructions?.bulk_price;
+            if (p.display_name && price != null) {
+              products.push({ name: p.display_name, price: Number(price) });
+            }
+          });
         });
-      });
-      await delay(120);
-    } catch (err) {
-      console.warn(`Mercadona: categoría ${cat.id} falló — ${err?.message || String(err)}`);
+        await delay(120); // pausa educada para no sobrecargar la API
+      } catch (err) {
+        console.warn(`Mercadona: subcat ${sub.id} falló — ${err?.message || String(err)}`);
+      }
     }
   }
 
-  console.log(`Mercadona productos encontrados en debug (5 cats): ${products.length}`);
   return products;
 }
 
