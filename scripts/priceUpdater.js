@@ -164,31 +164,49 @@ export async function matchPricesWithClaude(itemNames, mercadonaProducts, alcamp
   const formatCatalog = (products, limit = 400) =>
     products.slice(0, limit).map(p => `- ${p.name}: ${p.price.toFixed(2)}€`).join('\n');
 
-  const prompt = `Eres un asistente experto en productos de supermercado español. Tu tarea es asignar precios actuales a los productos de una lista de la compra.
+  const prompt = `Eres un experto en compras de supermercado español. Tienes que asignar un precio a cada producto de una lista de la compra buscando el equivalente más cercano en los catálogos de Mercadona y Alcampo.
 
-LISTA DE PRODUCTOS DE LA APP (necesito precio para cada uno):
+REGLAS CRÍTICAS PARA EL MATCHING:
+1. Los nombres de la lista son COLOQUIALES y ABREVIADOS, no nombres de producto exactos. Siempre hay un equivalente.
+2. Barras "/" significan "o cualquiera de estos": "Queso rayado/polvo" → busca queso rallado o queso en polvo
+3. Cantidades: "Leche x2" → precio de 1 unidad de leche × 2. "x2", "x3" etc. multiplica el precio unitario
+4. Nombres genéricos: "Jamón" → jamón cocido en lonchas (el más barato). "Queso" → queso en lonchas básico
+5. Marcas propias: usa siempre la marca blanca más barata si existe (Hacendado en Mercadona)
+6. Productos de limpieza/higiene sin marca: busca el equivalente genérico más cercano
+7. NUNCA pongas null si existe algo remotamente parecido en el catálogo. Solo null si es un producto absolutamente inexistente (ej: medicamentos de prescripción)
+
+EJEMPLOS DE MATCHING CORRECTO:
+- "Leche x2" → precio leche 1L × 2 = ~1.90€
+- "Croquetas/palitos queso/nuggets" → busca croquetas (el más barato del catálogo)
+- "Queso rayado/polvo" → queso rallado o parmesano en polvo
+- "Sal/gorda" → sal de mesa o sal gruesa
+- "Cilantro/cebollino/albahaca" → cualquier hierba fresca de las mencionadas
+- "Picoteo trabajo" → patatas fritas o snack pequeño
+- "Comida perritas" → comida para perros húmeda o pienso pequeño
+- "Vitamina C" → vitamina C en pastillas o sobres
+- "Trapo amarillo/polvo/cristales/baño" → bayeta multiusos
+- "Pestosin baño/salón" → spray limpiador multiusos
+- "Productos pelo" → champú o acondicionador básico
+
+LISTA DE LA COMPRA (${itemNames.length} productos, necesito precio para TODOS):
 ${itemNames.map((n, i) => `${i + 1}. ${n}`).join('\n')}
 
-CATÁLOGO MERCADONA (${mercadonaProducts.length} productos):
+CATÁLOGO MERCADONA (${mercadonaProducts.length} productos disponibles):
 ${formatCatalog(mercadonaProducts)}
 
 ${alcampoProducts.length > 0
-  ? `CATÁLOGO ALCAMPO (${alcampoProducts.length} productos):\n${formatCatalog(alcampoProducts)}`
-  : 'CATÁLOGO ALCAMPO: no disponible esta semana'}
+  ? `CATÁLOGO ALCAMPO (${alcampoProducts.length} productos disponibles):\n${formatCatalog(alcampoProducts)}`
+  : 'CATÁLOGO ALCAMPO: no disponible esta semana — pon null para todos los precios de alcampo'}
 
-INSTRUCCIONES:
-- Para cada producto de la app, encuentra el equivalente más cercano en cada catálogo
-- Usa coincidencia semántica (p.ej. "Leche x2" → precio de un brick de leche × 2)
-- Si no hay coincidencia razonable, usa null
-- Responde ÚNICAMENTE con JSON válido, sin markdown, sin explicación
-
-FORMATO DE RESPUESTA:
+FORMATO DE RESPUESTA (JSON puro, sin markdown, sin texto adicional):
 {
   "prices": {
-    "nombre producto": { "mercadona": 1.25, "alcampo": 1.19 },
-    "otro producto":   { "mercadona": null, "alcampo": 0.99 }
+    "nombre exacto del producto": { "mercadona": 1.25, "alcampo": 1.19 },
+    "otro producto": { "mercadona": 0.95, "alcampo": null }
   }
-}`;
+}
+
+IMPORTANTE: El JSON debe tener exactamente ${itemNames.length} entradas, una por cada producto de la lista. Los nombres deben ser exactamente iguales a los de la lista.`;
 
   const response = await anthropicClient.messages.create({
     model:      'claude-haiku-4-5-20251001',
