@@ -25,4 +25,4 @@ jobs:
         run: node scripts/updatePrices.js
         env:
           ANTHROPIC_API_KEY:            ${{ secrets.ANTHROPIC_API_KEY }}
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_LIST_APP_F4BCF }}
