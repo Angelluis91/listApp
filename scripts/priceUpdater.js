@@ -75,60 +75,84 @@ export async function fetchMercadonaProducts() {
   return products;
 }
 
-// Extrae productos de Alcampo analizando el HTML de páginas de categorías.
-// Intenta dos estrategias: __INITIAL_STATE__ (Redux SSR) y JSON-LD (schema.org).
+// Consulta la API interna de Alcampo buscando por términos clave de supermercado.
 // Devuelve [{ name, price }]. Nunca lanza excepción — devuelve [] si todo falla.
 export async function fetchAlcampoProducts() {
-  const urls = [
-    `${ALCAMPO_BASE}/es/c/alimentacion/lacteos-y-huevos`,
-    `${ALCAMPO_BASE}/es/c/alimentacion/panaderia-y-bolleria`,
-    `${ALCAMPO_BASE}/es/c/alimentacion/fruta-y-verdura`,
-    `${ALCAMPO_BASE}/es/c/alimentacion/carne-y-charcuteria`,
-    `${ALCAMPO_BASE}/es/c/drogueria-e-higiene`,
+  // Términos de búsqueda que cubren las categorías más comunes de la lista de la compra
+  const searchTerms = [
+    'leche', 'yogur', 'queso', 'huevos', 'mantequilla',
+    'pan', 'arroz', 'pasta', 'aceite', 'azucar',
+    'pollo', 'carne', 'jamon', 'atun', 'sardinas',
+    'tomate', 'patatas', 'cebollas', 'lechuga',
+    'zumo', 'agua', 'refresco', 'cerveza',
+    'detergente', 'papel higienico', 'jabon',
   ];
 
   const products = [];
+  const seen     = new Set(); // evitar duplicados por nombre
 
-  for (const url of urls) {
+  for (const term of searchTerms) {
     try {
+      // API de búsqueda interna de Alcampo (compraonline)
+      const url = `${ALCAMPO_BASE}/api/products/search?site=alcampo_es&q=${encodeURIComponent(term)}&rows=20`;
       const res = await fetch(url, { headers: BROWSER_HEADERS });
       if (!res.ok) continue;
-      const html = await res.text();
 
-      // Estrategia 1: buscar __INITIAL_STATE__ (Redux SSR)
-      const stateMatch = html.match(/window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]+?\});\s*<\/script>/);
-      if (stateMatch) {
-        try {
-          const reduxState = JSON.parse(stateMatch[1]);
-          const items = reduxState?.search?.results?.items
-                     || reduxState?.category?.products?.items
-                     || [];
-          items.forEach(p => {
-            const price = p.price?.amount ?? p.price?.value ?? p.salePrice;
-            if (p.name && price != null) products.push({ name: p.name, price: Number(price) });
-          });
-        } catch { /* JSON inválido, continuar con JSON-LD */ }
+      const data = await res.json();
+
+      // La respuesta puede tener diferentes estructuras según la versión de la API
+      const items = data?.results?.products
+                 || data?.products?.results
+                 || data?.items
+                 || data?.results
+                 || [];
+
+      if (Array.isArray(items)) {
+        items.forEach(p => {
+          const name  = p.name || p.title || p.displayName;
+          const price = p.price?.value ?? p.price?.amount ?? p.currentPrice ?? p.price;
+          if (name && price != null && !seen.has(name)) {
+            seen.add(name);
+            products.push({ name, price: Number(price) });
+          }
+        });
       }
 
-      // Estrategia 2: bloques JSON-LD (schema.org Product / ItemList)
-      const jsonLdBlocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]+?)<\/script>/g)];
-      for (const block of jsonLdBlocks) {
-        try {
-          const ld      = JSON.parse(block[1]);
-          const entries = ld['@type'] === 'ItemList' ? (ld.itemListElement || []) : [ld];
-          entries.forEach(e => {
-            const item  = e.item || e;
-            const price = item.offers?.price ?? item.offers?.lowPrice;
-            if (item.name && price != null) products.push({ name: item.name, price: Number(price) });
-          });
-        } catch { /* continuar con el siguiente bloque */ }
-      }
-
-      if (products.length > 10) break; // suficientes datos, no seguir raspando
-      await delay(200);
-    } catch { /* ignorar URL fallida, continuar con la siguiente */ }
+      await delay(300);
+    } catch { /* ignorar términos que fallen, continuar */ }
   }
 
+  // Si la API interna no funcionó, intentar con el buscador público
+  if (products.length === 0) {
+    for (const term of searchTerms.slice(0, 5)) {
+      try {
+        const url = `https://www.alcampo.es/search/?text=${encodeURIComponent(term)}`;
+        const res = await fetch(url, { headers: BROWSER_HEADERS });
+        if (!res.ok) continue;
+        const html = await res.text();
+
+        // Buscar JSON-LD (schema.org)
+        const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]+?)<\/script>/g)];
+        for (const block of blocks) {
+          try {
+            const ld      = JSON.parse(block[1]);
+            const entries = ld['@type'] === 'ItemList' ? (ld.itemListElement || []) : [ld];
+            entries.forEach(e => {
+              const item  = e.item || e;
+              const price = item.offers?.price ?? item.offers?.lowPrice;
+              if (item.name && price != null && !seen.has(item.name)) {
+                seen.add(item.name);
+                products.push({ name: item.name, price: Number(price) });
+              }
+            });
+          } catch { /* continuar */ }
+        }
+        await delay(500);
+      } catch { /* ignorar */ }
+    }
+  }
+
+  console.log(`Alcampo: ${products.length} productos encontrados`);
   return products;
 }
 

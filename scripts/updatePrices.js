@@ -69,6 +69,21 @@ async function main() {
   // 4. Aplicar precios a los items — nunca sobreescribe si el match falla
   const { updatedItems, updatedCount } = applyPricesToItems(currentItems, priceMap);
 
+  // Log detallado: qué se actualizó y qué no
+  console.log('\n── Resultados por producto ──');
+  updatedItems.forEach(item => {
+    if (item.priceStatus === 'ok') {
+      console.log(`  ✅ ${item.label} (${item.store}): ${item.price.toFixed(2)}€`);
+    } else {
+      const match = priceMap[item.label];
+      const reason = !match
+        ? 'sin match en Claude'
+        : `precio ${item.store} es ${match[item.store] === null ? 'null' : match[item.store]}`;
+      console.log(`  ❌ ${item.label} (${item.store}): ${reason}`);
+    }
+  });
+  console.log('─────────────────────────────\n');
+
   // 5. Persistir la estructura actualizada en Firestore
   await db.doc(STRUCTURE_DOC).update({ items: updatedItems });
 
