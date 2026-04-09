@@ -33,13 +33,25 @@ export async function fetchMercadonaProducts() {
 
   const data = await res.json();
 
+  // Log de diagnóstico: ver la estructura real que devuelve la API
+  console.log(`Mercadona data type: ${typeof data}`);
+  console.log(`Mercadona data keys: ${Array.isArray(data) ? '[array]' : Object.keys(data).join(', ')}`);
+  if (!Array.isArray(data)) {
+    for (const key of Object.keys(data).slice(0, 5)) {
+      const val = data[key];
+      console.log(`  [${key}]: ${Array.isArray(val) ? `array(${val.length})` : typeof val}`);
+    }
+  } else {
+    console.log(`  Array length: ${data.length}, primer item keys: ${data[0] ? Object.keys(data[0]).join(', ') : 'vacío'}`);
+  }
+
   // La API puede devolver { results: [...] } o directamente un array
   const topCategories = Array.isArray(data.results) ? data.results
                       : Array.isArray(data)          ? data
                       : [];
 
   if (topCategories.length === 0) {
-    throw new Error(`Mercadona: estructura inesperada — keys: ${Object.keys(data).join(', ')}`);
+    throw new Error(`Mercadona: estructura inesperada — keys: ${Array.isArray(data) ? '[array vacío]' : Object.keys(data).join(', ')}`);
   }
 
   const products = [];
