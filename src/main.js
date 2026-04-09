@@ -5,7 +5,7 @@ import { subscribeLists }                      from './services/listsService.js'
 import { renderMain, togglePending, clearAll } from './ui/mainList.js';
 import { renderLists }                         from './ui/customLists.js';
 import { addDetailItem }                       from './ui/detail.js';
-import { openModal, closeModal, createList, openEditModal } from './ui/modal.js';
+import { openModal, closeModal, createList, openEditModal, clearReminder } from './ui/modal.js';
 import { switchTab, goBackToLists }            from './ui/navigation.js';
 
 // ── Navegación por tabs ─────────────────────────────────────────────────────
@@ -28,6 +28,7 @@ document.getElementById('new-item-input').addEventListener('keydown', e => {
 document.getElementById('btn-new-list').addEventListener('click', openModal);
 document.getElementById('btn-modal-cancel').addEventListener('click', closeModal);
 document.getElementById('btn-modal-create').addEventListener('click', createList);
+document.getElementById('btn-clear-reminder').addEventListener('click', clearReminder);
 document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
 document.getElementById('modal-name').addEventListener('keydown', e => { if (e.key === 'Enter') createList(); });
 

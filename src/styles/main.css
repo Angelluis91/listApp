@@ -516,6 +516,42 @@ input  { font-family: inherit; }
 .btn-create { background: var(--primary); color: #fff; }
 .btn-create:hover { background: var(--primary-hover); }
 
+/* ── Reminder badge en tarjeta de lista ────────────────────────────────────── */
+.reminder-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 4px; padding: 2px 8px;
+  font-size: .7rem; font-weight: 500; color: var(--primary);
+  background: var(--primary-light); border: 1px solid #c7d2fe;
+  border-radius: 999px; width: fit-content;
+}
+.reminder-badge.expired {
+  color: var(--ink-4); background: var(--bg); border-color: var(--border);
+  text-decoration: line-through;
+}
+.gcal-btn { text-decoration: none; font-size: .9rem; }
+
+/* ── Reminder input en modal ───────────────────────────────────────────────── */
+.modal-label-optional { font-size: .68rem; font-weight: 400; color: var(--ink-4); text-transform: none; letter-spacing: 0; }
+.reminder-input-row {
+  display: flex; align-items: center; gap: 6px;
+}
+.reminder-input-row input[type="datetime-local"] {
+  flex: 1; padding: 10px 14px; border-radius: var(--r);
+  border: 1.5px solid var(--border); font-size: .9rem; color: var(--ink);
+  background: var(--bg); outline: none;
+  transition: border-color var(--dur), box-shadow var(--dur);
+}
+.reminder-input-row input[type="datetime-local"]:focus {
+  border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.1);
+}
+.reminder-clear-btn {
+  flex-shrink: 0; width: 30px; height: 30px; border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .75rem; color: var(--ink-4); border: 1px solid var(--border);
+  background: var(--bg); transition: all var(--dur);
+}
+.reminder-clear-btn:hover { background: var(--danger-light); color: var(--danger); border-color: var(--danger-light); }
+
 /* ── Animations ────────────────────────────────────────────────────────────── */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(8px); }

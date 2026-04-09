@@ -37,12 +37,13 @@ export async function saveList(list) {
   }
 }
 
-// Actualiza solo el nombre y/o emoji de una lista sin tocar sus items
-export async function updateListMeta(listId, { name, emoji }) {
+// Actualiza nombre, emoji y/o recordatorio de una lista sin tocar sus items
+export async function updateListMeta(listId, { name, emoji, reminder }) {
   const list = state.customLists.find(l => l.id === listId);
   if (!list) return;
-  if (name  !== undefined) list.name  = name;
-  if (emoji !== undefined) list.emoji = emoji;
+  if (name     !== undefined) list.name     = name;
+  if (emoji    !== undefined) list.emoji    = emoji;
+  if (reminder !== undefined) list.reminder = reminder;
   await saveList(list);
 }
 

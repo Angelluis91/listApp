@@ -1,4 +1,4 @@
-// Controla el modal de creación/edición de lista: apertura, cierre, selector de emoji y guardado en Firestore
+// Controla el modal de creación/edición de lista: apertura, cierre, selector de emoji, recordatorio y guardado en Firestore
 import { state }                    from '../state/appState.js';
 import { EMOJIS }                   from '../data/mainData.js';
 import { saveList, updateListMeta } from '../services/listsService.js';
@@ -12,7 +12,8 @@ export function openModal() {
   editingListId = null;
   document.getElementById('modal-title').textContent       = 'Nueva lista';
   document.getElementById('btn-modal-create').textContent  = 'Crear';
-  document.getElementById('modal-name').value = '';
+  document.getElementById('modal-name').value    = '';
+  document.getElementById('modal-reminder').value = '';
   state.selectedEmoji = '📝';
   renderEmojiPicker();
   document.getElementById('modal').classList.add('open');
@@ -27,7 +28,11 @@ export function openEditModal(listId) {
   editingListId = listId;
   document.getElementById('modal-title').textContent       = 'Editar lista';
   document.getElementById('btn-modal-create').textContent  = 'Guardar';
-  document.getElementById('modal-name').value = list.name;
+  document.getElementById('modal-name').value              = list.name;
+  // Cargar recordatorio existente en formato datetime-local (YYYY-MM-DDTHH:MM)
+  document.getElementById('modal-reminder').value = list.reminder
+    ? new Date(list.reminder).toISOString().slice(0, 16)
+    : '';
   state.selectedEmoji = list.emoji;
   renderEmojiPicker();
   document.getElementById('modal').classList.add('open');
@@ -54,24 +59,31 @@ function renderEmojiPicker() {
 
 // Valida el nombre y crea una nueva lista o actualiza la existente según el modo del modal
 export async function createList() {
-  const nameInput = document.getElementById('modal-name');
+  const nameInput     = document.getElementById('modal-name');
+  const reminderInput = document.getElementById('modal-reminder');
   const name = nameInput.value.trim();
   if (!name) { nameInput.focus(); return; }
+
+  // Convertir datetime-local a ISO string; null si no hay fecha
+  const reminder = reminderInput.value ? new Date(reminderInput.value).toISOString() : null;
 
   closeModal();
 
   if (editingListId) {
-    // Modo edición: actualizar solo nombre y emoji sin tocar los items
-    await updateListMeta(editingListId, { name, emoji: state.selectedEmoji });
+    // Modo edición: actualizar nombre, emoji y recordatorio sin tocar los items
+    await updateListMeta(editingListId, { name, emoji: state.selectedEmoji, reminder });
     editingListId = null;
     return;
   }
 
   // Modo creación: guardar en Firestore y abrir detalle
-  // persistentLocalCache dispara onSnapshot de forma inmediata tras el write,
-  // por lo que state.customLists ya estará actualizado cuando openList sea llamado
   const id   = Date.now().toString();
-  const list = { id, name, emoji: state.selectedEmoji, items: [], createdAt: Date.now() };
+  const list = { id, name, emoji: state.selectedEmoji, items: [], createdAt: Date.now(), reminder };
   await saveList(list);
   openList(id);
+}
+
+// Limpia el campo de recordatorio del modal (botón ✕)
+export function clearReminder() {
+  document.getElementById('modal-reminder').value = '';
 }
