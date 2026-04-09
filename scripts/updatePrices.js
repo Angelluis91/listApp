@@ -48,13 +48,12 @@ async function main() {
 
   if (mercadonaOk) {
     console.log(`Mercadona: ${mercadonaProducts.length} productos`);
-  } else {
+  } else if (mercadonaResult.status === 'rejected') {
     const err = mercadonaResult.reason;
-    console.log(`Mercadona ERROR tipo: ${typeof err}`);
-    console.log(`Mercadona ERROR raw: ${String(err)}`);
-    try { console.log(`Mercadona ERROR json: ${JSON.stringify(err)}`); } catch {}
-    if (err?.message) console.log(`Mercadona ERROR message: ${err.message}`);
-    if (err?.stack)   console.log(`Mercadona ERROR stack: ${err.stack}`);
+    console.log(`Mercadona REJECTED: ${err?.message || String(err)}`);
+    if (err?.stack) console.log(err.stack);
+  } else {
+    console.log(`Mercadona: fulfilled pero devolvió 0 productos`);
   }
   console.log(`Alcampo:   ${alcampoOk ? alcampoProducts.length + ' productos' : 'sin datos (web dinámica)'}`);
 

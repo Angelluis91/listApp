@@ -54,29 +54,40 @@ export async function fetchMercadonaProducts() {
     throw new Error(`Mercadona: estructura inesperada — keys: ${Array.isArray(data) ? '[array vacío]' : Object.keys(data).join(', ')}`);
   }
 
+  // Log del primer item para ver su estructura real
+  const firstCat = topCategories[0];
+  console.log(`Mercadona primer item keys: ${Object.keys(firstCat).join(', ')}`);
+  console.log(`Mercadona primer item: ${JSON.stringify(firstCat).slice(0, 300)}`);
+
   const products = [];
 
-  for (const cat of topCategories.slice(0, 25)) {
+  for (const cat of topCategories.slice(0, 5)) { // solo 5 categorías en modo debug
     try {
-      const catRes = await fetch(`${MERCADONA_CATEGORIES_URL}${cat.id}/`, { headers: BROWSER_HEADERS });
+      const catUrl = `${MERCADONA_CATEGORIES_URL}${cat.id}/`;
+      console.log(`Mercadona fetching: ${catUrl}`);
+      const catRes = await fetch(catUrl, { headers: BROWSER_HEADERS });
+      console.log(`Mercadona cat ${cat.id} status: ${catRes.status}`);
       if (!catRes.ok) continue;
       const catData = await catRes.json();
+      console.log(`Mercadona cat ${cat.id} keys: ${Object.keys(catData).join(', ')}`);
       const subcats = catData.categories || [catData];
+      console.log(`Mercadona cat ${cat.id} subcats: ${subcats.length}`);
       subcats.forEach(sub => {
+        console.log(`  subcat keys: ${Object.keys(sub).join(', ')}, products: ${(sub.products || []).length}`);
         (sub.products || []).forEach(p => {
-          // unit_price tiene preferencia sobre bulk_price
           const price = p.price_instructions?.unit_price ?? p.price_instructions?.bulk_price;
           if (p.display_name && price != null) {
             products.push({ name: p.display_name, price: Number(price) });
           }
         });
       });
-      await delay(120); // pausa educada para no sobrecargar la API
+      await delay(120);
     } catch (err) {
-      console.warn(`Mercadona: categoría ${cat.id} falló — ${err.message}`);
+      console.warn(`Mercadona: categoría ${cat.id} falló — ${err?.message || String(err)}`);
     }
   }
 
+  console.log(`Mercadona productos encontrados en debug (5 cats): ${products.length}`);
   return products;
 }
 
