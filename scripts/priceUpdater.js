@@ -74,93 +74,49 @@ export async function fetchMercadonaProducts() {
   return products;
 }
 
-// Consulta la API de Alcampo probando diferentes endpoints conocidos.
+// Obtiene precios de referencia para items de Alcampo usando la API pública de Consum.
+// Alcampo no expone API accesible (SPA sin SSR, endpoints bloqueados). Consum usa la misma
+// gama de productos del mercado español con precios muy similares.
 // Devuelve [{ name, price }]. Nunca lanza excepción — devuelve [] si todo falla.
 export async function fetchAlcampoProducts() {
-  const seen     = new Set();
   const products = [];
+  const LIMIT    = 100;
+  const MAX_ITEMS = 1200;
+  const BASE_URL = 'https://tienda.consum.es/api/rest/V1.0/catalog/product';
 
-  // Endpoints candidatos de la plataforma Alcampo (SAP Hybris / OCC)
-  const apiCandidates = [
-    { label: 'OCC v2',       url: 'https://www.alcampo.es/occ/v2/alcampo/products/search?query=leche&pageSize=20&fields=FULL', json: true  },
-    { label: 'OCC v2 alt',   url: 'https://www.alcampo.es/api/v2/products/search?q=leche&pageSize=20',                          json: true  },
-    { label: 'compraonline', url: 'https://compraonline.alcampo.es/api/products/search?q=leche&rows=20&site=alcampo_es',          json: true  },
-    { label: 'search json',  url: 'https://www.alcampo.es/search?text=leche&format=json',                                        json: true  },
-    { label: 'search html',  url: 'https://www.alcampo.es/compra-online/?text=leche',                                            json: false },
-  ];
-
-  for (const candidate of apiCandidates) {
+  for (let start = 0; start < MAX_ITEMS; start += LIMIT) {
     try {
-      const res = await fetch(candidate.url, { headers: BROWSER_HEADERS });
-      console.log(`Alcampo [${candidate.label}] status: ${res.status}`);
-      if (!res.ok) continue;
-
-      if (candidate.json) {
-        const data = await res.json();
-        console.log(`Alcampo [${candidate.label}] keys: ${Object.keys(data).join(', ')}`);
-
-        // Extraer productos de distintas estructuras posibles
-        const items = data?.products?.results
-                   || data?.results?.products
-                   || data?.productSearchResult?.results
-                   || data?.results
-                   || data?.items
-                   || [];
-
-        console.log(`Alcampo [${candidate.label}] items encontrados: ${Array.isArray(items) ? items.length : 'no array — ' + typeof items}`);
-
-        if (Array.isArray(items) && items.length > 0) {
-          console.log(`Alcampo [${candidate.label}] primer item keys: ${Object.keys(items[0]).join(', ')}`);
-          console.log(`Alcampo [${candidate.label}] primer item: ${JSON.stringify(items[0]).slice(0, 200)}`);
-
-          items.forEach(p => {
-            const name  = p.name || p.title || p.displayName;
-            const price = p.price?.value ?? p.price?.formattedValue?.replace(/[^0-9,]/g, '').replace(',', '.')
-                       ?? p.currentPrice ?? p.priceData?.value;
-            if (name && price != null && !seen.has(name)) {
-              seen.add(name);
-              products.push({ name, price: Number(price) });
-            }
-          });
-
-          if (products.length > 0) {
-            console.log(`Alcampo: endpoint [${candidate.label}] funcionó con ${products.length} productos`);
-            break; // endpoint encontrado, no seguir probando
-          }
-        }
-      } else {
-        // HTML: buscar JSON-LD
-        const html   = await res.text();
-        const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]+?)<\/script>/g)];
-        console.log(`Alcampo [${candidate.label}] bloques JSON-LD: ${blocks.length}`);
-        for (const block of blocks) {
-          try {
-            const ld      = JSON.parse(block[1]);
-            const entries = ld['@type'] === 'ItemList' ? (ld.itemListElement || []) : [ld];
-            entries.forEach(e => {
-              const item  = e.item || e;
-              const price = item.offers?.price ?? item.offers?.lowPrice;
-              if (item.name && price != null && !seen.has(item.name)) {
-                seen.add(item.name);
-                products.push({ name: item.name, price: Number(price) });
-              }
-            });
-          } catch { /* continuar */ }
-        }
-        if (products.length > 0) {
-          console.log(`Alcampo: JSON-LD funcionó con ${products.length} productos`);
-          break;
-        }
+      const url = `${BASE_URL}?userType=1&languageId=1&limit=${LIMIT}&start=${start}`;
+      const res = await fetch(url, { headers: BROWSER_HEADERS });
+      if (!res.ok) {
+        console.warn(`Consum (ref. Alcampo) pág ${Math.floor(start / LIMIT) + 1} HTTP ${res.status}`);
+        break;
       }
+      const data  = await res.json();
+      const batch = data.products || [];
+
+      batch.forEach(p => {
+        const name   = p.productData?.name;
+        // prices[0] = precio normal, prices[1] = precio oferta si existe — tomamos el más bajo
+        const prices = (p.priceData?.prices || [])
+          .map(pr => pr.value?.centAmount)
+          .filter(v => v != null && v > 0);
+        const price = prices.length ? Math.min(...prices) : null;
+        if (name && price != null) {
+          products.push({ name, price });
+        }
+      });
+
+      if (!data.hasMore || batch.length === 0) break;
+      await delay(120);
     } catch (err) {
-      console.log(`Alcampo [${candidate.label}] error: ${err?.message || String(err)}`);
+      console.warn(`Consum (ref. Alcampo) start=${start}: ${err?.message || String(err)}`);
+      break;
     }
-    await delay(300);
   }
 
-  // Si todos fallaron, log claro del problema
   if (products.length === 0) {
-    console.log('Alcampo: todos los endpoints fallaron — los precios de Alcampo no se actualizarán');
+    console.log('Consum (ref. Alcampo): sin datos — los precios de Alcampo no se actualizarán');
   }
 
   return products;

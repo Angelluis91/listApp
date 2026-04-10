@@ -22,18 +22,20 @@ function mockResponse(body, ok = true, status = 200) {
   };
 }
 
-// Genera una respuesta HTML con __INITIAL_STATE__ de Alcampo
-function htmlWithInitialState(state) {
-  return `<html><body>
-    <script>window.__INITIAL_STATE__ = ${JSON.stringify(state)};
-    </script></body></html>`;
-}
-
-// Genera una respuesta HTML con un bloque JSON-LD
-function htmlWithJsonLd(jsonLd) {
-  return `<html><body>
-    <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
-    </body></html>`;
+// Construye una respuesta de la API de Consum con los productos indicados
+function consumResponse(products, hasMore = false, totalCount = products.length) {
+  return {
+    totalCount,
+    hasMore,
+    products: products.map(p => ({
+      productData: { name: p.name },
+      priceData: {
+        prices: Array.isArray(p.prices)
+          ? p.prices.map((v, i) => ({ id: i === 0 ? 'PRICE' : 'OFFER_PRICE', value: { centAmount: v } }))
+          : [{ id: 'PRICE', value: { centAmount: p.price } }],
+      },
+    })),
+  };
 }
 
 // ── Setup global del mock de fetch ─────────────────────────────────────────────
@@ -51,7 +53,7 @@ describe('fetchMercadonaProducts', () => {
 
   it('devuelve productos parseando correctamente nombre y unit_price', async () => {
     mockFetch
-      .mockResolvedValueOnce(mockResponse({ results: [{ id: '1' }] }))
+      .mockResolvedValueOnce(mockResponse({ results: [{ id: 'p1', categories: [{ id: 'sub1' }] }] }))
       .mockResolvedValueOnce(mockResponse({
         categories: [{
           products: [
@@ -70,7 +72,7 @@ describe('fetchMercadonaProducts', () => {
 
   it('usa bulk_price cuando unit_price es null', async () => {
     mockFetch
-      .mockResolvedValueOnce(mockResponse({ results: [{ id: '1' }] }))
+      .mockResolvedValueOnce(mockResponse({ results: [{ id: 'p1', categories: [{ id: 'sub1' }] }] }))
       .mockResolvedValueOnce(mockResponse({
         categories: [{
           products: [
@@ -87,7 +89,7 @@ describe('fetchMercadonaProducts', () => {
 
   it('omite productos sin nombre', async () => {
     mockFetch
-      .mockResolvedValueOnce(mockResponse({ results: [{ id: '1' }] }))
+      .mockResolvedValueOnce(mockResponse({ results: [{ id: 'p1', categories: [{ id: 'sub1' }] }] }))
       .mockResolvedValueOnce(mockResponse({
         categories: [{
           products: [
@@ -105,7 +107,7 @@ describe('fetchMercadonaProducts', () => {
 
   it('omite productos donde unit_price y bulk_price son ambos null', async () => {
     mockFetch
-      .mockResolvedValueOnce(mockResponse({ results: [{ id: '1' }] }))
+      .mockResolvedValueOnce(mockResponse({ results: [{ id: 'p1', categories: [{ id: 'sub1' }] }] }))
       .mockResolvedValueOnce(mockResponse({
         categories: [{
           products: [
@@ -129,9 +131,12 @@ describe('fetchMercadonaProducts', () => {
 
   it('omite una categoría que devuelve HTTP error y continúa con las demás', async () => {
     mockFetch
-      .mockResolvedValueOnce(mockResponse({ results: [{ id: '1' }, { id: '2' }] }))
-      .mockResolvedValueOnce(mockResponse({}, false, 503))  // cat 1: falla
-      .mockResolvedValueOnce(mockResponse({                  // cat 2: ok
+      .mockResolvedValueOnce(mockResponse({ results: [
+        { id: 'p1', categories: [{ id: 'sub1' }] },
+        { id: 'p2', categories: [{ id: 'sub2' }] },
+      ] }))
+      .mockResolvedValueOnce(mockResponse({}, false, 503))  // sub1: falla
+      .mockResolvedValueOnce(mockResponse({                  // sub2: ok
         categories: [{
           products: [{ display_name: 'Tomate', price_instructions: { unit_price: '0.80' } }],
         }],
@@ -155,7 +160,7 @@ describe('fetchMercadonaProducts', () => {
 
   it('parsea subcategorías cuando catData.categories existe', async () => {
     mockFetch
-      .mockResolvedValueOnce(mockResponse({ results: [{ id: '1' }] }))
+      .mockResolvedValueOnce(mockResponse({ results: [{ id: 'p1', categories: [{ id: 'sub1' }] }] }))
       .mockResolvedValueOnce(mockResponse({
         categories: [
           { products: [{ display_name: 'Leche', price_instructions: { unit_price: '0.95' } }] },
@@ -172,75 +177,84 @@ describe('fetchMercadonaProducts', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ALCAMPO
+// ALCAMPO (implementado vía Consum — Alcampo no tiene API pública)
 // ═══════════════════════════════════════════════════════════════════════════════
 describe('fetchAlcampoProducts', () => {
 
-  it('extrae productos del bloque __INITIAL_STATE__ con estructura search.results.items', async () => {
-    const initialState = {
-      search: { results: { items: [
-        { name: 'Leche Entera 1L',  price: { amount: 1.05 } },
-        { name: 'Mantequilla 250g', price: { amount: 2.30 } },
-      ]}},
-    };
-    mockFetch.mockResolvedValueOnce(mockResponse(htmlWithInitialState(initialState)));
+  it('extrae nombre y precio normal de la API de Consum', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(consumResponse([
+      { name: 'Leche Semidesnatada Brik', price: 1.25 },
+      { name: 'Yogur Natural 4 Ud',       price: 0.89 },
+    ])));
 
     const products = await fetchAlcampoProducts();
 
-    expect(products.find(p => p.name === 'Leche Entera 1L')).toBeDefined();
-    expect(products.find(p => p.name === 'Leche Entera 1L').price).toBe(1.05);
-    expect(products.find(p => p.name === 'Mantequilla 250g').price).toBe(2.30);
+    expect(products).toHaveLength(2);
+    expect(products[0]).toEqual({ name: 'Leche Semidesnatada Brik', price: 1.25 });
+    expect(products[1]).toEqual({ name: 'Yogur Natural 4 Ud',       price: 0.89 });
   });
 
-  it('extrae productos del bloque __INITIAL_STATE__ con estructura category.products.items', async () => {
-    const initialState = {
-      category: { products: { items: [
-        { name: 'Yogur Natural 500g', price: { value: 0.89 } },
-      ]}},
-    };
-    mockFetch.mockResolvedValueOnce(mockResponse(htmlWithInitialState(initialState)));
+  it('toma el precio mínimo cuando hay precio normal y precio oferta', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(consumResponse([
+      { name: 'Lentejas Bote', prices: [2.35, 1.99] }, // oferta más barata
+    ])));
 
     const products = await fetchAlcampoProducts();
 
-    expect(products.find(p => p.name === 'Yogur Natural 500g')).toBeDefined();
+    expect(products[0].price).toBe(1.99);
   });
 
-  it('extrae productos de JSON-LD de tipo Product con offers.price', async () => {
-    const jsonLd = { '@type': 'Product', name: 'Arroz SOS 1kg', offers: { price: 1.50 } };
-    mockFetch.mockResolvedValueOnce(mockResponse(htmlWithJsonLd(jsonLd)));
+  it('filtra productos sin nombre', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(consumResponse([
+      { name: null,   price: 1.00 },
+      { name: 'Pan',  price: 1.00 },
+    ])));
 
     const products = await fetchAlcampoProducts();
 
-    expect(products.find(p => p.name === 'Arroz SOS 1kg')).toBeDefined();
-    expect(products.find(p => p.name === 'Arroz SOS 1kg').price).toBe(1.50);
+    expect(products).toHaveLength(1);
+    expect(products[0].name).toBe('Pan');
   });
 
-  it('extrae productos de JSON-LD de tipo ItemList', async () => {
-    const jsonLd = {
-      '@type': 'ItemList',
-      itemListElement: [
-        { item: { name: 'Pan Molde',  offers: { price: 1.25 } } },
-        { item: { name: 'Baguette',   offers: { price: 0.75 } } },
-      ],
-    };
-    mockFetch.mockResolvedValueOnce(mockResponse(htmlWithJsonLd(jsonLd)));
+  it('filtra productos con precio 0 o negativo', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(consumResponse([
+      { name: 'Producto Raro', price: 0   },
+      { name: 'Aceite',        price: 3.5 },
+    ])));
 
     const products = await fetchAlcampoProducts();
 
-    expect(products.find(p => p.name === 'Pan Molde')).toBeDefined();
-    expect(products.find(p => p.name === 'Baguette')).toBeDefined();
+    expect(products).toHaveLength(1);
+    expect(products[0].name).toBe('Aceite');
   });
 
-  it('usa offers.lowPrice si offers.price no existe en JSON-LD', async () => {
-    const jsonLd = { '@type': 'Product', name: 'Aceite Oliva', offers: { lowPrice: 4.99 } };
-    mockFetch.mockResolvedValueOnce(mockResponse(htmlWithJsonLd(jsonLd)));
+  it('pagina cuando hasMore es true', async () => {
+    mockFetch
+      .mockResolvedValueOnce(mockResponse(consumResponse(
+        [{ name: 'Leche', price: 1.25 }], true, 200,
+      )))
+      .mockResolvedValueOnce(mockResponse(consumResponse(
+        [{ name: 'Pan',   price: 1.00 }], false, 200,
+      )));
 
     const products = await fetchAlcampoProducts();
 
-    expect(products.find(p => p.name === 'Aceite Oliva').price).toBe(4.99);
+    expect(products).toHaveLength(2);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
-  it('devuelve array vacío si todas las URLs devuelven HTTP error', async () => {
+  it('se detiene cuando hasMore es false sin hacer más requests', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(consumResponse(
+      [{ name: 'Leche', price: 1.25 }], false,
+    )));
+
+    const products = await fetchAlcampoProducts();
+
+    expect(products).toHaveLength(1);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('devuelve array vacío si la primera petición devuelve HTTP error', async () => {
     mockFetch.mockResolvedValue(mockResponse({}, false, 503));
 
     const products = await fetchAlcampoProducts();
@@ -254,34 +268,15 @@ describe('fetchAlcampoProducts', () => {
     await expect(fetchAlcampoProducts()).resolves.toEqual([]);
   });
 
-  it('ignora __INITIAL_STATE__ con JSON inválido y sigue con JSON-LD', async () => {
-    const jsonLd = { '@type': 'Product', name: 'Pasta Barilla', offers: { price: 1.89 } };
-    const html = `<html><body>
-      <script>window.__INITIAL_STATE__ = {esto no es json válido;
-      </script>
-      <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
-      </body></html>`;
-    mockFetch.mockResolvedValueOnce(mockResponse(html));
+  it('se detiene si el batch devuelto está vacío aunque hasMore sea true', async () => {
+    mockFetch
+      .mockResolvedValueOnce(mockResponse(consumResponse([{ name: 'Leche', price: 1.25 }], true)))
+      .mockResolvedValueOnce(mockResponse(consumResponse([], true)));  // batch vacío
 
     const products = await fetchAlcampoProducts();
 
-    expect(products.find(p => p.name === 'Pasta Barilla')).toBeDefined();
-  });
-
-  it('se detiene al superar 10 productos sin recorrer todas las URLs', async () => {
-    // Primera URL devuelve 11 productos → no debe hacer más requests
-    const initialState = {
-      search: { results: { items: Array.from({ length: 11 }, (_, i) => ({
-        name: `Producto ${i + 1}`, price: { amount: i + 1 },
-      })) }},
-    };
-    mockFetch.mockResolvedValueOnce(mockResponse(htmlWithInitialState(initialState)));
-
-    const products = await fetchAlcampoProducts();
-
-    expect(products.length).toBeGreaterThanOrEqual(11);
-    // Solo se hizo 1 petición
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(products).toHaveLength(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });
 

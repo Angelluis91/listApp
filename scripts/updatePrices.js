@@ -55,7 +55,7 @@ async function main() {
   } else {
     console.log(`Mercadona: fulfilled pero devolvió 0 productos`);
   }
-  console.log(`Alcampo:   ${alcampoOk ? alcampoProducts.length + ' productos' : 'sin datos (web dinámica)'}`);
+  console.log(`Alcampo:   ${alcampoOk ? alcampoProducts.length + ' productos (vía Consum)' : 'sin datos'}`);
 
   if (!mercadonaOk) {
     await writeLog({ status: 'error', message: 'No se pudo acceder a Mercadona', updated: 0 });
