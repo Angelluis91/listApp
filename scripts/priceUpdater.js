@@ -75,43 +75,68 @@ export async function fetchMercadonaProducts() {
 }
 
 // Obtiene precios de referencia para items de Alcampo usando la API pública de Consum.
-// Alcampo no expone API accesible (SPA sin SSR, endpoints bloqueados). Consum usa la misma
-// gama de productos del mercado español con precios muy similares.
+// Alcampo no expone API accesible (SPA sin SSR, todos los endpoints bloqueados/404).
+// Consum tiene API pública con 9170 productos y precios reales del mercado español.
+// Usamos búsquedas dirigidas por categoría para cubrir TODAS las secciones de la lista,
+// evitando que la paginación genérica solo devuelva frutas y verduras.
 // Devuelve [{ name, price }]. Nunca lanza excepción — devuelve [] si todo falla.
 export async function fetchAlcampoProducts() {
+  const seen     = new Set();
   const products = [];
-  const LIMIT    = 100;
-  const MAX_ITEMS = 1200;
-  const BASE_URL = 'https://tienda.consum.es/api/rest/V1.0/catalog/product';
 
-  for (let start = 0; start < MAX_ITEMS; start += LIMIT) {
+  // Términos ordenados: categorías con mayor tasa de fallos primero
+  // para que queden en los primeros 700 productos enviados a Claude
+  const SEARCH_TERMS = [
+    // Limpieza y hogar (mayor tasa de fallos)
+    'limpiador', 'lejia', 'lavavajillas', 'detergente', 'suavizante',
+    // Papel e higiene
+    'papel', 'servilleta', 'champu', 'gel', 'desodorante', 'compresas',
+    // Mascotas
+    'pienso',
+    // Condimentos y salsas (muchos fallos)
+    'sal', 'azucar', 'pimienta', 'oregano', 'vinagre', 'aceite', 'ketchup', 'mayonesa',
+    // Conservas
+    'atun', 'conserva',
+    // Legumbres y secos
+    'garbanzo', 'lenteja', 'pasta', 'arroz', 'harina',
+    // Pan y repostería
+    'pan', 'levadura', 'chocolate', 'galleta', 'miel', 'mermelada',
+    // Bebidas calientes
+    'cafe', 'manzanilla',
+    // Verduras variadas
+    'zanahoria', 'espinaca', 'champiñon', 'guisante',
+    // Frutas variadas
+    'limon', 'arandano', 'manzana',
+    // Lácteos y carnes (ya tienen buen matching pero completar)
+    'leche', 'yogur', 'queso', 'pollo', 'carne', 'jamon',
+  ];
+
+  for (const term of SEARCH_TERMS) {
     try {
-      const url = `${BASE_URL}?userType=1&languageId=1&limit=${LIMIT}&start=${start}`;
+      const url = `https://tienda.consum.es/api/rest/V1.0/catalog/product?userType=1&languageId=1&limit=50&start=0&query=${encodeURIComponent(term)}`;
       const res = await fetch(url, { headers: BROWSER_HEADERS });
       if (!res.ok) {
-        console.warn(`Consum (ref. Alcampo) pág ${Math.floor(start / LIMIT) + 1} HTTP ${res.status}`);
-        break;
+        console.warn(`Consum (ref. Alcampo) "${term}" HTTP ${res.status}`);
+        continue;
       }
-      const data  = await res.json();
-      const batch = data.products || [];
+      const data = await res.json();
 
-      batch.forEach(p => {
-        const name   = p.productData?.name;
-        // prices[0] = precio normal, prices[1] = precio oferta si existe — tomamos el más bajo
+      (data.products || []).forEach(p => {
+        const name = p.productData?.name;
+        // Tomamos el precio más bajo (normal o oferta)
         const prices = (p.priceData?.prices || [])
           .map(pr => pr.value?.centAmount)
           .filter(v => v != null && v > 0);
         const price = prices.length ? Math.min(...prices) : null;
-        if (name && price != null) {
+        if (name && price != null && !seen.has(name)) {
+          seen.add(name);
           products.push({ name, price });
         }
       });
 
-      if (!data.hasMore || batch.length === 0) break;
-      await delay(120);
+      await delay(100);
     } catch (err) {
-      console.warn(`Consum (ref. Alcampo) start=${start}: ${err?.message || String(err)}`);
-      break;
+      console.warn(`Consum (ref. Alcampo) "${term}": ${err?.message || String(err)}`);
     }
   }
 
@@ -130,38 +155,58 @@ export async function matchPricesWithClaude(itemNames, mercadonaProducts, alcamp
   const formatCatalog = (products, limit = 400) =>
     products.slice(0, limit).map(p => `- ${p.name}: ${p.price.toFixed(2)}€`).join('\n');
 
-  const prompt = `Eres un experto en compras de supermercado español. Tienes que asignar un precio a cada producto de una lista de la compra buscando el equivalente más cercano en los catálogos de Mercadona y Alcampo.
+  const prompt = `Eres un experto en compras de supermercado español. Tienes que asignar un precio a cada producto de una lista de la compra buscando el equivalente más cercano en los catálogos.
 
-REGLAS CRÍTICAS PARA EL MATCHING:
-1. Los nombres de la lista son COLOQUIALES y ABREVIADOS, no nombres de producto exactos. Siempre hay un equivalente.
-2. Barras "/" significan "o cualquiera de estos": "Queso rayado/polvo" → busca queso rallado o queso en polvo
-3. Cantidades: "Leche x2" → precio de 1 unidad de leche × 2. "x2", "x3" etc. multiplica el precio unitario
-4. Nombres genéricos: "Jamón" → jamón cocido en lonchas (el más barato). "Queso" → queso en lonchas básico
-5. Marcas propias: usa siempre la marca blanca más barata si existe (Hacendado en Mercadona)
-6. Productos de limpieza/higiene sin marca: busca el equivalente genérico más cercano
-7. NUNCA pongas null si existe algo remotamente parecido en el catálogo. Solo null si es un producto absolutamente inexistente (ej: medicamentos de prescripción)
+CONTEXTO IMPORTANTE:
+- El catálogo de Mercadona usa nombres de marca (Hacendado, etc.)
+- El catálogo de Alcampo está extraído de Consum, que usa nombres FORMALES y DESCRIPTIVOS:
+  "Papel Higiénico 4 Rollos", "Detergente Líquido Botella", "Champu Anticaspa Bote"
+  Debes hacer matching semántico, no textual.
 
-EJEMPLOS DE MATCHING CORRECTO:
-- "Leche x2" → precio leche 1L × 2 = ~1.90€
-- "Croquetas/palitos queso/nuggets" → busca croquetas (el más barato del catálogo)
-- "Queso rayado/polvo" → queso rallado o parmesano en polvo
-- "Sal/gorda" → sal de mesa o sal gruesa
-- "Cilantro/cebollino/albahaca" → cualquier hierba fresca de las mencionadas
-- "Picoteo trabajo" → patatas fritas o snack pequeño
-- "Comida perritas" → comida para perros húmeda o pienso pequeño
-- "Vitamina C" → vitamina C en pastillas o sobres
-- "Trapo amarillo/polvo/cristales/baño" → bayeta multiusos
-- "Pestosin baño/salón" → spray limpiador multiusos
-- "Productos pelo" → champú o acondicionador básico
+REGLAS DE MATCHING (obligatorias):
+1. Nombres COLOQUIALES → busca el equivalente formal en el catálogo
+   "papel baño" → "Papel Higiénico", "champu" → "Champú", "sal" → "Sal Fina" o "Sal Mesa"
+2. "/" significa "cualquiera de estos": "sal/gorda" → sal fina o sal gruesa (el más barato)
+3. "xN" multiplica: "Leche x2" → precio unitario leche × 2
+4. Genéricos → marca blanca más barata: "jamón" → jamón cocido lonchas barato
+5. Limpieza/higiene → busca el nombre genérico del producto aunque el formato difiera
+6. Mascotas: "comida perritas" → pienso seco o comida húmeda para perros
+7. NUNCA null si hay algo remotamente parecido. Solo null para productos inexistentes en supermercados (medicamentos de prescripción, etc.)
+
+TABLA DE EQUIVALENCIAS COLOQUIAL → FORMAL (usa esto como guía):
+- "papel baño/cocina/pañuelos/servilletas" → "Papel Higiénico / Papel Cocina / Pañuelos / Servilletas"
+- "champu/gel/desodorante/compresas/tampones" → busca esas palabras en el catálogo formal
+- "sal / pimienta / oregano / perejil / canela / comino / pimenton" → especias en polvo o enteras
+- "azucar/moreno" → "Azúcar Blanca" o "Azúcar Moreno"
+- "aceite oliva/girasol" → "Aceite de Oliva / Aceite de Girasol Botella"
+- "ketchup / mayonesa / vinagre / mermelada / miel" → bote o botella estándar
+- "atun / maiz / guisantes / aceitunas" → lata o bote de conserva
+- "pasta corta/spaguetti/fideos/noodles" → pasta seca (el formato más barato)
+- "garbanzos/judias/lentejas" → legumbre cocida en bote (la más barata)
+- "harina/maicena/levadura/pan rallado" → paquete estándar
+- "chocolate negro" → tableta chocolate negro
+- "galletas/cereales" → paquete básico
+- "anacardos/nueces/cacahuetes" → bolsa de frutos secos
+- "lavavajillas/detergente/suavizante/lejia" → formato botella estándar
+- "bolsas basura 10L/30L" → rollo bolsas del tamaño indicado
+- "bolsas zip/papel film/aluminio/horno" → caja estándar
+- "estropajo/trapo/bayeta" → pack de estropajos o bayeta
+- "limpiador/quita grasas/limpia cristales/friega suelos" → spray o botella limpiador
+- "cillit bang/mokito/pronto/ambientador" → el producto más cercano por función
+- "desmaquillante/discos algodón/acetona" → formato bote o paquete estándar
+- "seda dental/enjuague bucal/suero fisiológico/tiritas" → producto higiene/farmacia
+- "vitamina C" → complemento vitamínico en sobres o pastillas
+- "picoteo trabajo" → patatas fritas o snack pequeño
+- "comida/premio/palitos/bolsa perritas" → producto para perros (pienso, snack, bolsas)
 
 LISTA DE LA COMPRA (${itemNames.length} productos, necesito precio para TODOS):
 ${itemNames.map((n, i) => `${i + 1}. ${n}`).join('\n')}
 
-CATÁLOGO MERCADONA (${mercadonaProducts.length} productos disponibles):
+CATÁLOGO MERCADONA (${mercadonaProducts.length} productos):
 ${formatCatalog(mercadonaProducts)}
 
 ${alcampoProducts.length > 0
-  ? `CATÁLOGO ALCAMPO (${alcampoProducts.length} productos disponibles):\n${formatCatalog(alcampoProducts)}`
+  ? `CATÁLOGO ALCAMPO/CONSUM (${alcampoProducts.length} productos, nombres formales):\n${formatCatalog(alcampoProducts, 700)}`
   : 'CATÁLOGO ALCAMPO: no disponible esta semana — pon null para todos los precios de alcampo'}
 
 FORMATO DE RESPUESTA (JSON puro, sin markdown, sin texto adicional):
@@ -172,7 +217,7 @@ FORMATO DE RESPUESTA (JSON puro, sin markdown, sin texto adicional):
   }
 }
 
-IMPORTANTE: El JSON debe tener exactamente ${itemNames.length} entradas, una por cada producto de la lista. Los nombres deben ser exactamente iguales a los de la lista.`;
+IMPORTANTE: El JSON debe tener exactamente ${itemNames.length} entradas. Los nombres deben ser exactamente iguales a los de la lista.`;
 
   const response = await anthropicClient.messages.create({
     model:      'claude-haiku-4-5-20251001',

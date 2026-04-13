@@ -179,82 +179,80 @@ describe('fetchMercadonaProducts', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ALCAMPO (implementado vía Consum — Alcampo no tiene API pública)
 // ═══════════════════════════════════════════════════════════════════════════════
-describe('fetchAlcampoProducts', () => {
+// timeout alto: 48 términos × 100ms delay real = ~5s mínimo
+describe('fetchAlcampoProducts', { timeout: 15000 }, () => {
 
   it('extrae nombre y precio normal de la API de Consum', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(consumResponse([
+    // mockResolvedValue (sin Once) → mismo resultado para todos los términos, dedup mantiene 1 copia
+    mockFetch.mockResolvedValue(mockResponse(consumResponse([
       { name: 'Leche Semidesnatada Brik', price: 1.25 },
       { name: 'Yogur Natural 4 Ud',       price: 0.89 },
     ])));
 
     const products = await fetchAlcampoProducts();
 
-    expect(products).toHaveLength(2);
-    expect(products[0]).toEqual({ name: 'Leche Semidesnatada Brik', price: 1.25 });
-    expect(products[1]).toEqual({ name: 'Yogur Natural 4 Ud',       price: 0.89 });
+    expect(products.find(p => p.name === 'Leche Semidesnatada Brik')).toEqual({ name: 'Leche Semidesnatada Brik', price: 1.25 });
+    expect(products.find(p => p.name === 'Yogur Natural 4 Ud')).toEqual({ name: 'Yogur Natural 4 Ud', price: 0.89 });
   });
 
   it('toma el precio mínimo cuando hay precio normal y precio oferta', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(consumResponse([
+    mockFetch.mockResolvedValue(mockResponse(consumResponse([
       { name: 'Lentejas Bote', prices: [2.35, 1.99] }, // oferta más barata
     ])));
 
     const products = await fetchAlcampoProducts();
 
-    expect(products[0].price).toBe(1.99);
+    expect(products.find(p => p.name === 'Lentejas Bote').price).toBe(1.99);
   });
 
   it('filtra productos sin nombre', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(consumResponse([
+    mockFetch.mockResolvedValue(mockResponse(consumResponse([
       { name: null,   price: 1.00 },
       { name: 'Pan',  price: 1.00 },
     ])));
 
     const products = await fetchAlcampoProducts();
 
-    expect(products).toHaveLength(1);
-    expect(products[0].name).toBe('Pan');
+    expect(products.every(p => p.name != null)).toBe(true);
+    expect(products.some(p => p.name === 'Pan')).toBe(true);
   });
 
   it('filtra productos con precio 0 o negativo', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(consumResponse([
+    mockFetch.mockResolvedValue(mockResponse(consumResponse([
       { name: 'Producto Raro', price: 0   },
       { name: 'Aceite',        price: 3.5 },
     ])));
 
     const products = await fetchAlcampoProducts();
 
-    expect(products).toHaveLength(1);
-    expect(products[0].name).toBe('Aceite');
+    expect(products.every(p => p.price > 0)).toBe(true);
+    expect(products.some(p => p.name === 'Aceite')).toBe(true);
   });
 
-  it('pagina cuando hasMore es true', async () => {
+  it('deduplica productos que aparecen en múltiples búsquedas', async () => {
+    // Mismo producto devuelto para todos los términos → debe aparecer solo una vez
+    mockFetch.mockResolvedValue(mockResponse(consumResponse([
+      { name: 'Leche Semidesnatada', price: 1.25 },
+    ])));
+
+    const products = await fetchAlcampoProducts();
+
+    expect(products.filter(p => p.name === 'Leche Semidesnatada')).toHaveLength(1);
+  });
+
+  it('continúa con otros términos si uno falla con HTTP error', async () => {
     mockFetch
-      .mockResolvedValueOnce(mockResponse(consumResponse(
-        [{ name: 'Leche', price: 1.25 }], true, 200,
-      )))
-      .mockResolvedValueOnce(mockResponse(consumResponse(
-        [{ name: 'Pan',   price: 1.00 }], false, 200,
-      )));
+      .mockResolvedValueOnce(mockResponse({}, false, 503))        // primer término falla
+      .mockResolvedValue(mockResponse(consumResponse([            // resto OK
+        { name: 'Aceite de Oliva', price: 3.5 },
+      ])));
 
     const products = await fetchAlcampoProducts();
 
-    expect(products).toHaveLength(2);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(products.some(p => p.name === 'Aceite de Oliva')).toBe(true);
   });
 
-  it('se detiene cuando hasMore es false sin hacer más requests', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse(consumResponse(
-      [{ name: 'Leche', price: 1.25 }], false,
-    )));
-
-    const products = await fetchAlcampoProducts();
-
-    expect(products).toHaveLength(1);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('devuelve array vacío si la primera petición devuelve HTTP error', async () => {
+  it('devuelve array vacío si todos los términos devuelven HTTP error', async () => {
     mockFetch.mockResolvedValue(mockResponse({}, false, 503));
 
     const products = await fetchAlcampoProducts();
@@ -268,15 +266,18 @@ describe('fetchAlcampoProducts', () => {
     await expect(fetchAlcampoProducts()).resolves.toEqual([]);
   });
 
-  it('se detiene si el batch devuelto está vacío aunque hasMore sea true', async () => {
-    mockFetch
-      .mockResolvedValueOnce(mockResponse(consumResponse([{ name: 'Leche', price: 1.25 }], true)))
-      .mockResolvedValueOnce(mockResponse(consumResponse([], true)));  // batch vacío
+  it('hace múltiples peticiones con distintos términos de búsqueda', async () => {
+    mockFetch.mockResolvedValue(mockResponse(consumResponse([])));
 
-    const products = await fetchAlcampoProducts();
+    await fetchAlcampoProducts();
 
-    expect(products).toHaveLength(1);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    // Debe haber más de 5 llamadas (una por término de búsqueda)
+    expect(mockFetch.mock.calls.length).toBeGreaterThan(5);
+    // Cada llamada usa un query distinto
+    const terms = mockFetch.mock.calls
+      .map(c => new URL(c[0]).searchParams.get('query'))
+      .filter(Boolean);
+    expect(new Set(terms).size).toBeGreaterThan(5);
   });
 });
 
