@@ -10,16 +10,21 @@ const CHEVRON_SVG = `<svg class="store-chevron" viewBox="0 0 10 6" fill="none"><
 // Secciones actualmente contraídas (persiste en la sesión, no en Firestore)
 const collapsedStores = new Set();
 
+// Normaliza texto para búsqueda: minúsculas + sin acentos
+function normalize(str) {
+  return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 const STORE_CONFIG = {
   mercadona: { label: 'Mercadona', color: '#00875a', light: '#e6f4f0', border: '#b2dfdb' },
   alcampo:   { label: 'Alcampo',   color: '#e65c00', light: '#fff3e0', border: '#ffcc80' },
 };
 
-// Calcula el total en euros de los items marcados de una tienda concreta
+// Calcula el total en euros de los items marcados de una tienda concreta (precio × cantidad)
 function storeTotal(store) {
   return state.mainStructure
     .filter(i => i.store === store && state.mainState[i.id])
-    .reduce((sum, i) => sum + (i.price || 0), 0);
+    .reduce((sum, i) => sum + (i.price || 0) * (i.qty || 1), 0);
 }
 
 // Actualiza contadores globales, barra de progreso y totales por tienda en el header
@@ -40,7 +45,7 @@ export function updateMainSummary() {
 // Re-renderiza las dos secciones de tienda con sus items filtrados
 export function renderMain() {
   updateMainSummary();
-  const searchQuery = (document.getElementById('main-search')?.value || '').toLowerCase().trim();
+  const searchQuery = normalize(document.getElementById('main-search')?.value || '').trim();
   const container   = document.getElementById('main-sections');
   if (!container) return;
   container.innerHTML = '';
@@ -48,7 +53,7 @@ export function renderMain() {
   ['mercadona', 'alcampo'].forEach(store => {
     let items = state.mainStructure.filter(i => i.store === store);
     if (state.showPendingOnly) items = items.filter(i => !state.mainState[i.id]);
-    if (searchQuery)           items = items.filter(i => i.label.toLowerCase().includes(searchQuery));
+    if (searchQuery)           items = items.filter(i => normalize(i.label).includes(searchQuery));
     container.appendChild(renderStoreSection(store, items));
   });
 }
@@ -123,15 +128,23 @@ function renderStoreSection(store, items) {
   return section;
 }
 
-// Crea el elemento DOM de una fila: checkbox, etiqueta editable, precio editable y acciones
+// Crea el elemento DOM de una fila: checkbox, etiqueta editable, contador, precio editable y acciones
 function createItemRow(item) {
-  const checked = !!state.mainState[item.id];
+  const checked  = !!state.mainState[item.id];
+  const qty      = item.qty || 1;
+  const total    = item.price > 0 ? (item.price * qty).toFixed(2) + ' €' : '—';
+
   const row = document.createElement('div');
   row.className = 'item-row' + (checked ? ' checked' : '');
   row.innerHTML = `
     <button class="item-check ${checked ? 'is-checked' : ''}">${checked ? CHECK_SVG : ''}</button>
     <span class="item-label">${item.label}</span>
-    <button class="item-price" title="Editar precio">${item.price > 0 ? item.price.toFixed(2) + ' €' : '—'}</button>
+    <div class="item-qty">
+      <button class="qty-btn" data-action="qty-dec">−</button>
+      <span class="qty-value">${qty}</span>
+      <button class="qty-btn" data-action="qty-inc">+</button>
+    </div>
+    <button class="item-price" title="Editar precio unitario">${total}</button>
     <div class="item-actions">
       <button class="icon-btn sm" title="Cambiar tienda" data-action="change-store">🔄</button>
       <button class="icon-btn sm" title="Renombrar" data-action="edit-item">✏️</button>
@@ -142,11 +155,20 @@ function createItemRow(item) {
   row.querySelector('.item-check').addEventListener('click', e => { e.stopPropagation(); toggleItem(item, row); });
   row.querySelector('.item-label').addEventListener('click', () => toggleItem(item, row));
   row.querySelector('.item-price').addEventListener('click', e => { e.stopPropagation(); startEditPrice(item, row.querySelector('.item-price')); });
+  row.querySelector('[data-action="qty-dec"]').addEventListener('click', e => { e.stopPropagation(); changeQty(item, -1); });
+  row.querySelector('[data-action="qty-inc"]').addEventListener('click', e => { e.stopPropagation(); changeQty(item, +1); });
   row.querySelector('[data-action="change-store"]').addEventListener('click', e => { e.stopPropagation(); changeStore(item); });
   row.querySelector('[data-action="edit-item"]').addEventListener('click', e => { e.stopPropagation(); startEditLabel(item, row.querySelector('.item-label')); });
   row.querySelector('[data-action="delete-item"]').addEventListener('click', e => { e.stopPropagation(); deleteItem(item.id); });
 
   return row;
+}
+
+// Incrementa o decrementa la cantidad del item (mínimo 1)
+async function changeQty(item, delta) {
+  item.qty = Math.max(1, (item.qty || 1) + delta);
+  await saveStructure();
+  renderMain();
 }
 
 // Marca o desmarca un item, actualiza la UI y los totales sin re-renderizar
@@ -161,7 +183,7 @@ function toggleItem(item, row) {
   saveMain();
 }
 
-// Activa la edición inline del precio de un item
+// Activa la edición inline del precio UNITARIO de un item
 function startEditPrice(item, priceBtn) {
   const input = document.createElement('input');
   input.type      = 'number';
@@ -169,7 +191,7 @@ function startEditPrice(item, priceBtn) {
   input.value     = item.price > 0 ? item.price : '';
   input.min       = '0';
   input.step      = '0.01';
-  input.placeholder = '0.00';
+  input.placeholder = '0.00 c/u';
   priceBtn.replaceWith(input);
   input.focus();
   input.select();

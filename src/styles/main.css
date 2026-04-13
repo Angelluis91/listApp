@@ -247,6 +247,23 @@ input  { font-family: inherit; }
 .items-flat-list .item-row { border-bottom: 1px solid var(--border); }
 .items-flat-list .item-row:last-child { border-bottom: none; }
 
+/* ── Contador de cantidad ──────────────────────────────────────────────────── */
+.item-qty {
+  display: flex; align-items: center; gap: 2px; flex-shrink: 0;
+}
+.qty-btn {
+  width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--ink-3); font-size: .85rem; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--dur), color var(--dur);
+  cursor: pointer;
+}
+.qty-btn:hover { background: var(--primary-light); color: var(--primary); border-color: #a5b4fc; }
+.qty-value {
+  min-width: 18px; text-align: center; font-size: .78rem; font-weight: 600; color: var(--ink-2);
+}
+.item-row.checked .qty-btn { opacity: .5; }
+
 /* ── Precio editable en fila de item ───────────────────────────────────────── */
 .item-price {
   font-size: .75rem; font-weight: 600; color: var(--ink-3);
@@ -321,7 +338,7 @@ input  { font-family: inherit; }
 }
 .item-row:hover { background: var(--bg); }
 .item-row:hover .item-actions { opacity: 1; }
-.item-row.checked .item-label { text-decoration: line-through; color: var(--ink-4); }
+.item-row.checked .item-label { color: var(--ink-4); }
 
 /* Custom checkbox */
 .item-check {
@@ -513,7 +530,7 @@ input  { font-family: inherit; }
 }
 .detail-item:hover { box-shadow: var(--shadow-sm); border-color: #c7d2fe; }
 .detail-item:hover .item-actions { opacity: 1; }
-.detail-item.checked .simple-label { text-decoration: line-through; color: var(--ink-4); }
+.detail-item.checked .simple-label { color: var(--ink-4); }
 .simple-label { flex: 1; font-size: .875rem; color: var(--ink-2); }
 .simple-del {
   width: 28px; height: 28px; border-radius: var(--r-sm);
